@@ -1,0 +1,100 @@
+# Single source of truth for every knob in the project. No hard-coded values elsewhere.
+
+run:
+  start: "2024-07-01"          # first as_of (signal) date
+  end: "2025-06-30"            # last as_of date
+  step: 5                      # rebalance every H trading days (must equal model.horizon for weekly)
+
+universe:
+  indices: [kospi, kosdaq]     # one index per exchange, each point-in-time; the price files carry an `exchange` column
+  markets:                     # index -> cost market
+    kospi: KR
+    kosdaq: KR
+  max_stale_days: 5            # a ticker whose last bar is older than this (calendar days) at as_of is skipped
+  # --- investability filters applied when building constituents (data_prepare, trailing data only)
+  common_stock_only: true      # 6-digit code ending in 0 (drop 우선주 etc.)
+  exclude_name_patterns: ["스팩"]   # regex on ISU_NM (SPACs, both exchanges)
+  exclude_sect_patterns: ["SPAC"]   # regex on KOSDAQ 소속부(SECT_TP_NM); add "관리종목", "투자주의환기" to drop those (KOSDAQ only!)
+  min_history_rows: 400        # bars available before as_of (= model.lookback, so EW and Kronos share a universe)
+  liquidity_window: 20
+  min_avg_trdval: 1000000000   # KRW (10억원), trailing mean daily trading value; 0 disables.
+                               # Same absolute rule on both exchanges (fair execution assumption); override per index with
+                               # a mapping, e.g. {kospi: 1000000000, kosdaq: 500000000}
+  exclude_halted: true         # no trade on the as_of date -> not a member that day
+  universe_start_buffer_days: 30
+  variant: base                # which constituents variant the backtest reads (constituents_{index}[_{variant}].parquet)
+  variants:                    # universe forks built by data_prepare with overrides on the keys above ("base" = no override)
+    base: {}
+    liq5: {min_avg_trdval: 500000000}                    # looser liquidity (5억) -> larger, smaller-cap universe
+    clean: {exclude_sect_patterns: ["SPAC", "관리종목", "투자주의환기"]}   # KOSDAQ-only labels: asymmetric, sensitivity only
+
+krx:                           # data_prepare (KRX Open API)
+  fetch_start: "2022-10-01"    # ~420 trading days before run.start (lookback 400 + buffer)
+  fetch_end: "2025-07-15"      # run.end + horizon trading days (+ buffer) for realized labels
+  markets: [KOSPI, KOSDAQ]     # KOSPI -> stk_bydd_trd -> index "kospi"; KOSDAQ -> ksq_bydd_trd -> index "kosdaq"
+  index_series:                # benchmark index levels: index key -> {api, name, ticker}
+    kospi:  {api: kospi_dd_trd,  name: "코스피", ticker: "KOSPI"}
+    kosdaq: {api: kosdaq_dd_trd, name: "코스닥", ticker: "KOSDAQ"}
+  benchmark_etfs: ["226490", "229200"]   # KODEX 코스피, KODEX 코스닥150 (tradable proxies); [] to skip
+  min_interval_sec: 0.15
+  cache_dir: data/krx_raw       # raw JSON lives under {cache_dir}/{snapshot}/{api_id}/{YYYYMMDD}.json
+  snapshot: "2026-09-28"        # vintage: the day the raw pulls ran. Frozen afterwards; a new pull = a new snapshot
+
+data:
+  raw_dir: data/raw
+  universe_dir: data/universe
+  predictions_dir: data/predictions
+  results_dir: results
+  logs_dir: logs
+  price_file: prices.parquet
+  ffill_limit: 5               # forward-fill gaps (holidays) in prices up to this many rows; longer gaps = missing
+
+model:
+  name: NeoQuasar/Kronos-base
+  tokenizer: NeoQuasar/Kronos-Tokenizer-base
+  revision: main               # HF revision; the resolved commit sha is written to manifest.json
+  kronos_repo: ./Kronos        # local clone of https://github.com/shiyu-coder/Kronos (provides `model` package)
+  lookback: 400
+  horizon: 5                   # pred_len = H
+  temperature: 1.0
+  top_p: 0.9
+  top_k: 0
+  sample_count: 20
+  max_context: 512
+  batch_size: 256              # sequences per forward pass (tickers x samples); tune to GPU memory
+  device: cuda:0
+  seed: 0
+
+backtest:
+  initial_nav: 1.0
+  costs:
+    KR: {commission: 0.00015, sell_tax: 0.0018, slippage: 0.0005}
+    US: {commission: 0.0,     sell_tax: 0.0,    slippage: 0.0005}
+  default_market: US           # used for tickers with unknown market (e.g. benchmark ETFs)
+
+benchmark:
+  strategy: equal_weight       # strategy used for alpha/beta/IR/hit-ratio and regime classification
+  index_tickers:               # held by the index_buy_hold strategy (must exist in data/raw/benchmark)
+    kospi: "KOSPI"
+    kosdaq: "KOSDAQ"
+
+features:
+  mom_window: 20
+  vol_window: 20
+  rev_window: 5
+
+strategies:
+  topk:          {k: 20}
+  conf_weighted: {threshold: 0.5, max_weight: 0.10, min_exp_ret: 0.0}
+  vol_target:    {k: 20, target_range: null}
+  equal_weight:  {}
+  momentum20:    {k: 20}
+  random:        {k: 20, seed: 42}
+  index_buy_hold: {}
+
+metrics:
+  periods_per_year: 252
+  risk_free: 0.0
+  bootstrap: {n: 1000, block: 10, seed: 0}
+  n_trials: 8                  # number of strategy/parameter combinations tried (Deflated Sharpe)
+  n_quantiles: 5

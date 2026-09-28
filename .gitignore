@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.venv/
+# datasets are not committed; their metadata / manifest are
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/BUILD_METADATA.json
+!data/raw/sanity_report.json
+data/universe/*
+!data/universe/.gitkeep
+data/predictions/*
+!data/predictions/.gitkeep
+results/*
+!results/.gitkeep
+.DS_Store
+.env
+# raw JSON per endpoint (the vintage); PULL_METADATA.json / probe files stay trackable
+data/krx_raw/*/*/
+logs/

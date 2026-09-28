@@ -1,0 +1,434 @@
+{
+  "snapshot": "2026-09-28",
+  "config_hash": "b663ad327b62",
+  "code_commit": "f6ed21c0dcaee866f1bdb5685b1fbf6f4456ce13",
+  "built_at_utc": "2026-09-28T02:36:03.396890+00:00",
+  "fetch_range": [
+    "2022-10-01",
+    "2025-07-15"
+  ],
+  "run_range": [
+    "2024-07-01",
+    "2025-06-30"
+  ],
+  "indices": [
+    "kospi",
+    "kosdaq"
+  ],
+  "universe_variants": {
+    "base": {
+      "indices": [
+        "kospi",
+        "kosdaq"
+      ],
+      "markets": {
+        "kospi": "KR",
+        "kosdaq": "KR"
+      },
+      "max_stale_days": 5,
+      "common_stock_only": true,
+      "exclude_name_patterns": [
+        "스팩"
+      ],
+      "exclude_sect_patterns": [
+        "SPAC"
+      ],
+      "min_history_rows": 400,
+      "liquidity_window": 20,
+      "min_avg_trdval": 1000000000,
+      "exclude_halted": true,
+      "universe_start_buffer_days": 30
+    },
+    "liq5": {
+      "indices": [
+        "kospi",
+        "kosdaq"
+      ],
+      "markets": {
+        "kospi": "KR",
+        "kosdaq": "KR"
+      },
+      "max_stale_days": 5,
+      "common_stock_only": true,
+      "exclude_name_patterns": [
+        "스팩"
+      ],
+      "exclude_sect_patterns": [
+        "SPAC"
+      ],
+      "min_history_rows": 400,
+      "liquidity_window": 20,
+      "min_avg_trdval": 500000000,
+      "exclude_halted": true,
+      "universe_start_buffer_days": 30
+    },
+    "clean": {
+      "indices": [
+        "kospi",
+        "kosdaq"
+      ],
+      "markets": {
+        "kospi": "KR",
+        "kosdaq": "KR"
+      },
+      "max_stale_days": 5,
+      "common_stock_only": true,
+      "exclude_name_patterns": [
+        "스팩"
+      ],
+      "exclude_sect_patterns": [
+        "SPAC",
+        "관리종목",
+        "투자주의환기"
+      ],
+      "min_history_rows": 400,
+      "liquidity_window": 20,
+      "min_avg_trdval": 1000000000,
+      "exclude_halted": true,
+      "universe_start_buffer_days": 30
+    }
+  },
+  "build": {
+    "kospi": {
+      "base": {
+        "n_rows": 569720,
+        "n_tickers": 865,
+        "calendar": {
+          "first": "2022-10-04",
+          "last": "2025-07-15",
+          "n_days": 680,
+          "n_before_run_start": 428,
+          "n_after_run_end": 11
+        },
+        "halted_row_share": 0.020801446324510284,
+        "reference_price_events": {
+          "n": 179,
+          "n_applied": 179,
+          "n_ignored_out_of_bounds": 0
+        },
+        "residual_big_moves_after_adjustment": 6,
+        "delisted": {
+          "n_total": 15,
+          "n_during_run": 6,
+          "n_that_were_universe_members": 2,
+          "tickers_during_run": {
+            "003410": "2024-07-08",
+            "012600": "2025-05-26",
+            "034300": "2025-02-21",
+            "115390": "2024-12-06",
+            "168490": "2025-03-31",
+            "282690": "2024-10-07"
+          }
+        },
+        "universe": {
+          "n_dates": 271,
+          "members_per_date_min": 339,
+          "members_per_date_max": 468
+        },
+        "hard_failures": [],
+        "exchange": "KOSPI",
+        "variant": "base",
+        "security_filter": {
+          "dropped_non_common": 119,
+          "dropped_name~스팩": 1,
+          "dropped_sect~SPAC": 0
+        }
+      },
+      "liq5": {
+        "n_rows": 569720,
+        "n_tickers": 865,
+        "calendar": {
+          "first": "2022-10-04",
+          "last": "2025-07-15",
+          "n_days": 680,
+          "n_before_run_start": 428,
+          "n_after_run_end": 11
+        },
+        "halted_row_share": 0.020801446324510284,
+        "reference_price_events": {
+          "n": 179,
+          "n_applied": 179,
+          "n_ignored_out_of_bounds": 0
+        },
+        "residual_big_moves_after_adjustment": 6,
+        "delisted": {
+          "n_total": 15,
+          "n_during_run": 6,
+          "n_that_were_universe_members": 3,
+          "tickers_during_run": {
+            "003410": "2024-07-08",
+            "012600": "2025-05-26",
+            "034300": "2025-02-21",
+            "115390": "2024-12-06",
+            "168490": "2025-03-31",
+            "282690": "2024-10-07"
+          }
+        },
+        "universe": {
+          "n_dates": 271,
+          "members_per_date_min": 430,
+          "members_per_date_max": 575
+        },
+        "hard_failures": [],
+        "exchange": "KOSPI",
+        "variant": "liq5",
+        "security_filter": {
+          "dropped_non_common": 0,
+          "dropped_name~스팩": 0,
+          "dropped_sect~SPAC": 0
+        }
+      },
+      "clean": {
+        "n_rows": 569720,
+        "n_tickers": 865,
+        "calendar": {
+          "first": "2022-10-04",
+          "last": "2025-07-15",
+          "n_days": 680,
+          "n_before_run_start": 428,
+          "n_after_run_end": 11
+        },
+        "halted_row_share": 0.020801446324510284,
+        "reference_price_events": {
+          "n": 179,
+          "n_applied": 179,
+          "n_ignored_out_of_bounds": 0
+        },
+        "residual_big_moves_after_adjustment": 6,
+        "delisted": {
+          "n_total": 15,
+          "n_during_run": 6,
+          "n_that_were_universe_members": 2,
+          "tickers_during_run": {
+            "003410": "2024-07-08",
+            "012600": "2025-05-26",
+            "034300": "2025-02-21",
+            "115390": "2024-12-06",
+            "168490": "2025-03-31",
+            "282690": "2024-10-07"
+          }
+        },
+        "universe": {
+          "n_dates": 271,
+          "members_per_date_min": 339,
+          "members_per_date_max": 468
+        },
+        "hard_failures": [],
+        "exchange": "KOSPI",
+        "variant": "clean",
+        "security_filter": {
+          "dropped_non_common": 0,
+          "dropped_name~스팩": 0,
+          "dropped_sect~SPAC": 0,
+          "dropped_sect~관리종목": 0,
+          "dropped_sect~투자주의환기": 0
+        }
+      }
+    },
+    "kosdaq": {
+      "base": {
+        "n_rows": 1096500,
+        "n_tickers": 1770,
+        "calendar": {
+          "first": "2022-10-04",
+          "last": "2025-07-15",
+          "n_days": 680,
+          "n_before_run_start": 428,
+          "n_after_run_end": 11
+        },
+        "halted_row_share": 0.03945554035567715,
+        "reference_price_events": {
+          "n": 501,
+          "n_applied": 501,
+          "n_ignored_out_of_bounds": 0
+        },
+        "residual_big_moves_after_adjustment": 90,
+        "delisted": {
+          "n_total": 64,
+          "n_during_run": 26,
+          "n_that_were_universe_members": 7,
+          "tickers_during_run": {
+            "029960": "2025-06-13",
+            "038340": "2025-03-27",
+            "053590": "2024-10-04",
+            "062860": "2024-11-13",
+            "065560": "2024-07-26",
+            "071460": "2025-06-17",
+            "072520": "2025-06-17",
+            "078940": "2025-02-18",
+            "080000": "2024-12-19",
+            "089530": "2024-09-05",
+            "119860": "2024-09-23",
+            "136510": "2024-07-24",
+            "138580": "2024-11-21",
+            "160600": "2025-02-13",
+            "164060": "2024-10-21",
+            "181340": "2024-07-09",
+            "214310": "2024-12-20",
+            "214870": "2025-03-28",
+            "226440": "2025-06-18",
+            "263540": "2024-11-05",
+            "268600": "2025-03-06",
+            "287410": "2024-11-06",
+            "299910": "2025-02-13",
+            "323230": "2025-06-18",
+            "376190": "2025-02-20",
+            "900280": "2025-01-07"
+          }
+        },
+        "universe": {
+          "n_dates": 271,
+          "members_per_date_min": 480,
+          "members_per_date_max": 635
+        },
+        "hard_failures": [],
+        "exchange": "KOSDAQ",
+        "variant": "base",
+        "security_filter": {
+          "dropped_non_common": 4,
+          "dropped_name~스팩": 163,
+          "dropped_sect~SPAC": 162
+        }
+      },
+      "liq5": {
+        "n_rows": 1096500,
+        "n_tickers": 1770,
+        "calendar": {
+          "first": "2022-10-04",
+          "last": "2025-07-15",
+          "n_days": 680,
+          "n_before_run_start": 428,
+          "n_after_run_end": 11
+        },
+        "halted_row_share": 0.03945554035567715,
+        "reference_price_events": {
+          "n": 501,
+          "n_applied": 501,
+          "n_ignored_out_of_bounds": 0
+        },
+        "residual_big_moves_after_adjustment": 90,
+        "delisted": {
+          "n_total": 64,
+          "n_during_run": 26,
+          "n_that_were_universe_members": 9,
+          "tickers_during_run": {
+            "029960": "2025-06-13",
+            "038340": "2025-03-27",
+            "053590": "2024-10-04",
+            "062860": "2024-11-13",
+            "065560": "2024-07-26",
+            "071460": "2025-06-17",
+            "072520": "2025-06-17",
+            "078940": "2025-02-18",
+            "080000": "2024-12-19",
+            "089530": "2024-09-05",
+            "119860": "2024-09-23",
+            "136510": "2024-07-24",
+            "138580": "2024-11-21",
+            "160600": "2025-02-13",
+            "164060": "2024-10-21",
+            "181340": "2024-07-09",
+            "214310": "2024-12-20",
+            "214870": "2025-03-28",
+            "226440": "2025-06-18",
+            "263540": "2024-11-05",
+            "268600": "2025-03-06",
+            "287410": "2024-11-06",
+            "299910": "2025-02-13",
+            "323230": "2025-06-18",
+            "376190": "2025-02-20",
+            "900280": "2025-01-07"
+          }
+        },
+        "universe": {
+          "n_dates": 271,
+          "members_per_date_min": 665,
+          "members_per_date_max": 860
+        },
+        "hard_failures": [],
+        "exchange": "KOSDAQ",
+        "variant": "liq5",
+        "security_filter": {
+          "dropped_non_common": 0,
+          "dropped_name~스팩": 0,
+          "dropped_sect~SPAC": 0
+        }
+      },
+      "clean": {
+        "n_rows": 1096500,
+        "n_tickers": 1770,
+        "calendar": {
+          "first": "2022-10-04",
+          "last": "2025-07-15",
+          "n_days": 680,
+          "n_before_run_start": 428,
+          "n_after_run_end": 11
+        },
+        "halted_row_share": 0.03945554035567715,
+        "reference_price_events": {
+          "n": 501,
+          "n_applied": 501,
+          "n_ignored_out_of_bounds": 0
+        },
+        "residual_big_moves_after_adjustment": 90,
+        "delisted": {
+          "n_total": 64,
+          "n_during_run": 26,
+          "n_that_were_universe_members": 2,
+          "tickers_during_run": {
+            "029960": "2025-06-13",
+            "038340": "2025-03-27",
+            "053590": "2024-10-04",
+            "062860": "2024-11-13",
+            "065560": "2024-07-26",
+            "071460": "2025-06-17",
+            "072520": "2025-06-17",
+            "078940": "2025-02-18",
+            "080000": "2024-12-19",
+            "089530": "2024-09-05",
+            "119860": "2024-09-23",
+            "136510": "2024-07-24",
+            "138580": "2024-11-21",
+            "160600": "2025-02-13",
+            "164060": "2024-10-21",
+            "181340": "2024-07-09",
+            "214310": "2024-12-20",
+            "214870": "2025-03-28",
+            "226440": "2025-06-18",
+            "263540": "2024-11-05",
+            "268600": "2025-03-06",
+            "287410": "2024-11-06",
+            "299910": "2025-02-13",
+            "323230": "2025-06-18",
+            "376190": "2025-02-20",
+            "900280": "2025-01-07"
+          }
+        },
+        "universe": {
+          "n_dates": 271,
+          "members_per_date_min": 446,
+          "members_per_date_max": 595
+        },
+        "hard_failures": [],
+        "exchange": "KOSDAQ",
+        "variant": "clean",
+        "security_filter": {
+          "dropped_non_common": 0,
+          "dropped_name~스팩": 0,
+          "dropped_sect~SPAC": 0,
+          "dropped_sect~관리종목": 176,
+          "dropped_sect~투자주의환기": 139
+        }
+      }
+    }
+  },
+  "benchmark": {
+    "tickers": [
+      "KOSPI",
+      "KOSDAQ",
+      "226490",
+      "229200"
+    ],
+    "n_rows": 2720
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "stk_bydd_trd": {
+    "source": "https://data-dbg.krx.co.kr/svc/apis/sto/stk_bydd_trd.json",
+    "date_range": [
+      "2022-10-01",
+      "2025-07-15"
+    ],
+    "n_weekdays": 727,
+    "n_empty_weekdays": 47,
+    "n_rows": 648023,
+    "first_pulled_at_utc": "2026-09-28T02:40:03.218502+00:00",
+    "last_completed_at_utc": "2026-09-28T02:40:03.218665+00:00",
+    "calls_last_run": 0,
+    "calls_total": 0
+  },
+  "ksq_bydd_trd": {
+    "source": "https://data-dbg.krx.co.kr/svc/apis/sto/ksq_bydd_trd.json",
+    "date_range": [
+      "2022-10-01",
+      "2025-07-15"
+    ],
+    "n_weekdays": 727,
+    "n_empty_weekdays": 47,
+    "n_rows": 1160429,
+    "first_pulled_at_utc": "2026-09-28T02:40:08.740545+00:00",
+    "last_completed_at_utc": "2026-09-28T02:40:08.740585+00:00",
+    "calls_last_run": 0,
+    "calls_total": 0
+  },
+  "kospi_dd_trd": {
+    "source": "https://data-dbg.krx.co.kr/svc/apis/idx/kospi_dd_trd.json",
+    "date_range": [
+      "2022-10-01",
+      "2025-07-15"
+    ],
+    "n_weekdays": 727,
+    "n_empty_weekdays": 47,
+    "n_rows": 35436,
+    "first_pulled_at_utc": "2026-09-28T02:40:09.261600+00:00",
+    "last_completed_at_utc": "2026-09-28T02:40:09.261620+00:00",
+    "calls_last_run": 0,
+    "calls_total": 0
+  },
+  "kosdaq_dd_trd": {
+    "source": "https://data-dbg.krx.co.kr/svc/apis/idx/kosdaq_dd_trd.json",
+    "date_range": [
+      "2022-10-01",
+      "2025-07-15"
+    ],
+    "n_weekdays": 727,
+    "n_empty_weekdays": 47,
+    "n_rows": 26312,
+    "first_pulled_at_utc": "2026-09-28T02:40:09.452404+00:00",
+    "last_completed_at_utc": "2026-09-28T02:40:09.452421+00:00",
+    "calls_last_run": 0,
+    "calls_total": 0
+  },
+  "etf_bydd_trd": {
+    "source": "https://data-dbg.krx.co.kr/svc/apis/etp/etf_bydd_trd.json",
+    "date_range": [
+      "2022-10-01",
+      "2025-07-15"
+    ],
+    "n_weekdays": 727,
+    "n_empty_weekdays": 0,
+    "n_rows": 595796,
+    "first_pulled_at_utc": "2026-09-28T02:40:12.480558+00:00",
+    "last_completed_at_utc": "2026-09-28T02:40:12.480579+00:00",
+    "calls_last_run": 0,
+    "calls_total": 0
+  }
+}

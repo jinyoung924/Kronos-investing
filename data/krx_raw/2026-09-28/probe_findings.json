@@ -1,0 +1,166 @@
+{
+  "probe_date": "20240702",
+  "services": {
+    "stk_bydd_trd": {
+      "ok": true,
+      "n_rows": 955,
+      "fields": [
+        "BAS_DD",
+        "ISU_CD",
+        "ISU_NM",
+        "MKT_NM",
+        "SECT_TP_NM",
+        "TDD_CLSPRC",
+        "CMPPREVDD_PRC",
+        "FLUC_RT",
+        "TDD_OPNPRC",
+        "TDD_HGPRC",
+        "TDD_LWPRC",
+        "ACC_TRDVOL",
+        "ACC_TRDVAL",
+        "MKTCAP",
+        "LIST_SHRS"
+      ],
+      "isu_cd_lengths": {
+        "6": 955
+      },
+      "n_no_trade": 23,
+      "mkt_nm": {
+        "KOSPI": 955
+      },
+      "sect_tp_nm": {
+        "": 955
+      },
+      "n_spac_by_name": 0
+    },
+    "ksq_bydd_trd": {
+      "ok": true,
+      "n_rows": 1740,
+      "fields": [
+        "BAS_DD",
+        "ISU_CD",
+        "ISU_NM",
+        "MKT_NM",
+        "SECT_TP_NM",
+        "TDD_CLSPRC",
+        "CMPPREVDD_PRC",
+        "FLUC_RT",
+        "TDD_OPNPRC",
+        "TDD_HGPRC",
+        "TDD_LWPRC",
+        "ACC_TRDVOL",
+        "ACC_TRDVAL",
+        "MKTCAP",
+        "LIST_SHRS"
+      ],
+      "isu_cd_lengths": {
+        "6": 1740
+      },
+      "n_no_trade": 81,
+      "mkt_nm": {
+        "KOSDAQ": 1740
+      },
+      "sect_tp_nm": {
+        "우량기업부": 532,
+        "중견기업부": 477,
+        "벤처기업부": 306,
+        "기술성장기업부": 216,
+        "SPAC(소속부없음)": 91,
+        "관리종목(소속부없음)": 67,
+        "투자주의환기종목(소속부없음)": 32,
+        "외국기업(소속부없음)": 19
+      },
+      "n_spac_by_name": 92
+    },
+    "kospi_dd_trd": {
+      "ok": true,
+      "n_rows": 54,
+      "fields": [
+        "BAS_DD",
+        "IDX_CLSS",
+        "IDX_NM",
+        "CLSPRC_IDX",
+        "CMPPREVDD_IDX",
+        "FLUC_RT",
+        "OPNPRC_IDX",
+        "HGPRC_IDX",
+        "LWPRC_IDX",
+        "ACC_TRDVOL",
+        "ACC_TRDVAL",
+        "MKTCAP"
+      ],
+      "index_names": [
+        "코스피 (외국주포함)",
+        "코스피",
+        "코스피 200",
+        "코스피 100",
+        "코스피 50",
+        "코스피 200 중소형주",
+        "코스피 200 초대형제외 지수",
+        "코스피200제외 코스피지수",
+        "코스피 200 커뮤니케이션서비스",
+        "코스피 200 건설"
+      ]
+    },
+    "kosdaq_dd_trd": {
+      "ok": true,
+      "n_rows": 40,
+      "fields": [
+        "BAS_DD",
+        "IDX_CLSS",
+        "IDX_NM",
+        "CLSPRC_IDX",
+        "CMPPREVDD_IDX",
+        "FLUC_RT",
+        "OPNPRC_IDX",
+        "HGPRC_IDX",
+        "LWPRC_IDX",
+        "ACC_TRDVOL",
+        "ACC_TRDVAL",
+        "MKTCAP"
+      ],
+      "index_names": [
+        "코스닥 (외국주포함)",
+        "코스닥",
+        "코스닥 150",
+        "코스닥 글로벌",
+        "코스닥 150 정보기술",
+        "코스닥 150 헬스케어",
+        "코스닥 150 커뮤니케이션서비스",
+        "코스닥 150 소재",
+        "코스닥 150 산업재",
+        "코스닥 150 필수소비재"
+      ]
+    },
+    "etf_bydd_trd": {
+      "ok": true,
+      "n_rows": 864,
+      "fields": [
+        "BAS_DD",
+        "ISU_CD",
+        "ISU_NM",
+        "TDD_CLSPRC",
+        "CMPPREVDD_PRC",
+        "FLUC_RT",
+        "NAV",
+        "TDD_OPNPRC",
+        "TDD_HGPRC",
+        "TDD_LWPRC",
+        "ACC_TRDVOL",
+        "ACC_TRDVAL",
+        "MKTCAP",
+        "INVSTASST_NETASST_TOTAMT",
+        "LIST_SHRS",
+        "IDX_IND_NM",
+        "OBJ_STKPRC_IDX",
+        "CMPPREVDD_IDX",
+        "FLUC_RT_IDX"
+      ],
+      "isu_cd_lengths": {
+        "6": 864
+      },
+      "n_no_trade": 15
+    }
+  },
+  "not_approved": []
+}

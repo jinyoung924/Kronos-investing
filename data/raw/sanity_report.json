@@ -1,0 +1,58 @@
+{
+  "gates": {
+    "kospi": {
+      "adj_vs_fluc_rt": {
+        "n_checked": 556903,
+        "n_bad": 0,
+        "share_ok": 1.0
+      },
+      "index_reconstruction": {
+        "index": "KOSPI",
+        "corr": 0.9999875751850245,
+        "beta": 0.9993074857540135,
+        "tracking_error_ann": 0.0009197137379472045,
+        "n_days": 679
+      }
+    },
+    "kosdaq": {
+      "adj_vs_fluc_rt": {
+        "n_checked": 1051215,
+        "n_bad": 0,
+        "share_ok": 1.0
+      },
+      "index_reconstruction": {
+        "index": "KOSDAQ",
+        "corr": 0.9998609752995324,
+        "beta": 0.9992311300016506,
+        "tracking_error_ann": 0.003969519895719969,
+        "n_days": 679
+      }
+    },
+    "etf_226490_vs_KOSPI": {
+      "corr": 0.9830697511663845,
+      "n_days": 679
+    },
+    "etf_229200_vs_KOSDAQ": {
+      "corr": 0.9450845576452944,
+      "n_days": 679
+    }
+  },
+  "diag": {
+    "kospi": {
+      "n_delisted_members": 4,
+      "mean_ret_after_exit": -0.005930211868452356,
+      "members_per_month": {
+        "min": 403,
+        "max": 495
+      }
+    },
+    "kosdaq": {
+      "n_delisted_members": 8,
+      "mean_ret_after_exit": -0.0990146165846772,
+      "members_per_month": {
+        "min": 627,
+        "max": 737
+      }
+    }
+  }
+}
