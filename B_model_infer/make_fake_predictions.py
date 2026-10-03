@@ -5,7 +5,8 @@
                                                   [--start --end] [--config configs/base.yaml] [--root .]
 
 Both kinds go through B_model_infer.run_inference.run, so as_of dates (rebalance_dates of the profile), the
-universe, the eligibility rule (qualify_window, D-3) and the manifest are exactly those of a real run.
+inference universe (profile universe_variant, D-5), the eligibility rule (qualify_window, D-3) and the manifest are
+exactly those of a real run.
 
 dummy  : DummyBackend random walk, pred_close = last_close * exp(cumsum N(0, SIGMA_DUMMY)) per sample and step
          (no information about the future). SIGMA_DUMMY is a test constant.
@@ -109,7 +110,7 @@ def make_fake(cfg: dict, kind: str, profile: str | None = None, run_id: str | No
     if prices is None:
         prices = load_prices(cfg, root, include_benchmark=False)
     if constituents is None:
-        constituents = load_constituents(cfg, root)
+        constituents = load_constituents(cfg, root, variant=prof.get("universe_variant") or cfg_get(cfg, "universe.variant", "base"))   # D-5
     backend = make_backend(kind, cfg, prices)
     extra = {"kind": kind, "fake": True, "leaky": kind == "oracle",
              "note": ("oracle: realised future prices on the as_of raw scale + exp(N(0, eps)) noise; for engine/wiring tests only"

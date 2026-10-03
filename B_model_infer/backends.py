@@ -76,7 +76,7 @@ class KronosBackend:
     def __init__(self, model_name: str, tokenizer_name: str, revision: str | None = None,
                  kronos_repo: str | Path | None = None, device: str = "cuda:0", max_context: int = 512,
                  temperature: float = 1.0, top_p: float = 0.9, top_k: int = 0,
-                 batch_size: int = 256, seed: int = 0):
+                 batch_size: int = 256, seed: int = 0, tokenizer_revision: str | None = None):
         if kronos_repo is not None:
             repo = str(Path(kronos_repo).resolve())
             if repo not in sys.path:
@@ -86,12 +86,13 @@ class KronosBackend:
 
         self.torch = torch
         self.model_name, self.tokenizer_name, self.revision = model_name, tokenizer_name, revision
+        self.tokenizer_revision = tokenizer_revision if tokenizer_revision is not None else revision
         self.temperature, self.top_p, self.top_k = temperature, top_p, top_k
         self.batch_size = max(1, int(batch_size))
         self.seed = seed
-        kw = {"revision": revision} if revision else {}
-        tokenizer = KronosTokenizer.from_pretrained(tokenizer_name, **kw)
-        model = Kronos.from_pretrained(model_name, **kw)
+        self.device = device
+        tokenizer = KronosTokenizer.from_pretrained(tokenizer_name, **({"revision": self.tokenizer_revision} if self.tokenizer_revision else {}))
+        model = Kronos.from_pretrained(model_name, **({"revision": revision} if revision else {}))
         self.predictor = KronosPredictor(model, tokenizer, device=device, max_context=max_context)
         self.resolved_revision = self._resolve_revision()
 
@@ -99,11 +100,11 @@ class KronosBackend:
         out = {}
         try:
             from huggingface_hub import model_info
-            for key, name in (("model", self.model_name), ("tokenizer", self.tokenizer_name)):
+            for key, name, rev in (("model", self.model_name, self.revision), ("tokenizer", self.tokenizer_name, self.tokenizer_revision)):
                 if Path(name).exists():
                     out[key] = f"local:{Path(name).resolve()}"
                 else:
-                    out[key] = model_info(name, revision=self.revision).sha
+                    out[key] = model_info(name, revision=rev).sha
         except Exception as e:  # offline pod, private repo, ...
             out["error"] = repr(e)
         return out

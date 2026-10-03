@@ -61,6 +61,13 @@ class Paths:
         """data/A_prepared/{name}.parquet (prices, calendar, halts, adj_factor, events, universe)."""
         return self.prepared_dir() / f"{name}.parquet"
 
+    # ---- B: pod bundles (appendix C-1) --------------------------------------------------------------
+    def bundles_dir(self) -> Path:
+        return self._dir("data.bundles_dir", "data/pod_bundles")
+
+    def bundle_path(self, run_id: str) -> Path:
+        return self.bundles_dir() / f"{run_id}.tar.gz"
+
     # ---- B: predictions ---------------------------------------------------------------------------
     def predictions_dir(self, run_id: str) -> Path:
         return self._dir("data.predictions_dir", "data/B_predictions") / run_id
@@ -71,6 +78,9 @@ class Paths:
 
     def manifest_file(self, run_id: str) -> Path:
         return self.predictions_dir(run_id) / "manifest.json"
+
+    def checksums_file(self, run_id: str) -> Path:
+        return self.predictions_dir(run_id) / "checksums.json"
 
     # ---- C: signals -------------------------------------------------------------------------------
     def signals_dir(self, run_id: str) -> Path:
@@ -97,6 +107,10 @@ class Paths:
     # ---- F: metrics -------------------------------------------------------------------------------
     def metrics_dir(self, run_id: str) -> Path:
         return self._dir("data.metrics_dir", "data/F_metrics") / run_id
+
+    def trials_ledger(self) -> Path:
+        """Global trials ledger across run_ids (D-17); the per-run trials.csv lives in metrics_dir(run_id)."""
+        return self._dir("data.metrics_dir", "data/F_metrics") / "trials.csv"
 
     # ---- G: reports -------------------------------------------------------------------------------
     def report_dir(self, run_id: str) -> Path:

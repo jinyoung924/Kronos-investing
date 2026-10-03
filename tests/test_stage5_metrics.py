@@ -214,3 +214,56 @@ def test_real_metrics_oracle_near_one_dummy_near_zero():
     assert (ci["sharpe_ci_lower"] <= ci["sharpe"]).all() and (ci["sharpe"] <= ci["sharpe_ci_upper"]).all()
     trials = pd.read_csv(paths.metrics_dir("fake_dummy_base") / "trials.csv")
     assert not trials.duplicated(["run_id", "engine", "strategy", "config_hash"]).any()
+
+
+# ---------------------------------------------------------------------------------------------
+# Stage 5 follow-up (D-16, D-17)
+# ---------------------------------------------------------------------------------------------
+def test_market_contribution_splits_returns_by_market():
+    from F_evaluate.run_evaluate import market_contribution
+    dates = pd.bdate_range("2024-07-01", periods=4)
+    hold = pd.DataFrame({"date": np.repeat(dates, 2), "ticker": ["A", "B"] * 4, "weight": [0.5, 0.5] * 4})
+    ret = pd.DataFrame({"A": [np.nan, 0.02, -0.01, 0.03], "B": [np.nan, -0.02, 0.01, 0.01]}, index=dates)
+    out = pd.DataFrame(market_contribution(hold, ret, pd.Series({"A": "KOSPI", "B": "KOSDAQ"}), 252)).set_index("market")
+    assert out.loc["KOSPI", "contribution_total"] == pytest.approx(0.5 * (0.02 - 0.01 + 0.03))
+    assert out.loc["KOSDAQ", "contribution_total"] == pytest.approx(0.5 * (-0.02 + 0.01 + 0.01))
+    assert out.loc["KOSPI", "weight_share_mean"] == pytest.approx(0.5) and out.loc["KOSPI", "n_tickers_mean"] == 1
+    assert out.loc["KOSPI", "subbook_cagr"] == pytest.approx((1.02 * 0.99 * 1.03) ** (252 / 3) - 1)
+
+
+def test_n_trials_scope_counts_real_trials_of_the_same_profile():
+    from F_evaluate.run_evaluate import n_trials_for
+    ledger = pd.DataFrame([
+        {"run_id": "fake_dummy_base", "profile": "base", "fake": True, "config_hash": "a"},
+        {"run_id": "fake_dummy_base", "profile": "base", "fake": True, "config_hash": "b"},
+        {"run_id": "kronos_base_v1", "profile": "base", "fake": False, "config_hash": "a"},
+        {"run_id": "kronos_base_v1", "profile": "base", "fake": False, "config_hash": "c"},
+        {"run_id": "kronos_base_v2", "profile": "base", "fake": False, "config_hash": "d"},
+        {"run_id": "kronos_paper_v1", "profile": "paper", "fake": False, "config_hash": "e"},
+    ])
+    assert n_trials_for(ledger, "fake_dummy_base", "base", True) == 2          # a fake run counts only itself
+    assert n_trials_for(ledger, "kronos_base_v1", "base", False) == 3          # real trials of the profile, across run_ids
+    assert n_trials_for(ledger, "kronos_paper_v1", "paper", False) == 1
+    assert n_trials_for(ledger, "kronos_paper_v1", "paper", False, scope="all") == 4
+    assert n_trials_for(ledger.iloc[0:0], "x", "base", False) == 0
+
+
+def test_real_metrics_have_index_benchmark_and_by_market():
+    cfg = load_config(ROOT / "configs/base.yaml")
+    paths = Paths(cfg, ROOT)
+    f = paths.metrics_dir("fake_oracle_base")
+    if not (f / "portfolio_by_market.csv").exists():
+        pytest.skip("run F_evaluate.run_evaluate first")
+    pmx = pd.read_csv(f / "portfolio_metrics.csv")
+    strat = pmx[~pmx["strategy"].str.startswith("index:")]
+    assert (strat["paper_benchmark"] == cfg["evaluate"]["paper_benchmark"]).all()
+    assert strat["aer_vs_index"].notna().all() and strat["ir_vs_index"].notna().all()
+    bm = pd.read_csv(f / "portfolio_by_market.csv")
+    assert set(bm["market"]) == set(cfg["data"]["markets"])
+    share = bm.groupby("strategy")["weight_share_mean"].sum()
+    assert np.allclose(share, 1.0, atol=0.02)
+    s = json.loads((f / "signal_metrics.json").read_text())
+    assert set(s["ic_by_market"]) == set(cfg["data"]["markets"])
+    assert all(v["exp_ret"]["mean"] > 0.6 for v in s["ic_by_market"].values())
+    ledger = pd.read_csv(paths.trials_ledger())
+    assert {"profile", "fake"} <= set(ledger.columns) and not ledger.duplicated(["run_id", "engine", "strategy", "config_hash"]).any()

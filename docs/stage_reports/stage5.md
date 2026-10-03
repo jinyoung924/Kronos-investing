@@ -106,3 +106,18 @@ Stage 5 본문에 `[확인 필요]` 표시는 없다. 사용자 확인 그림은
 3. **Deflated Sharpe의 시도 수 범위**: run_id별 trials.csv(현재)인지, 모든 run_id·K 변형(--set)까지 합친 전역 시도 수인지. Stage 8 compare에서 결정.
 4. **backtest.delist_policy**: 여전히 null(제안 last_close). 모든 E 실행에 `--set`을 쓰고 있다.
 5. docs/outline.md 수정분과 논문 PDF는 커밋하지 않았다.
+
+## 후속 (2026-10-03, 사용자 지시: 벤치마크·거래소별 분해·DSR 범위) — D-16, D-17
+
+**수행한 것**
+
+1. **벤치마크(D-16)**: 주 벤치마크는 `evaluate.benchmark: equal_weight` 유지. 논문 재현용 지수 벤치마크 `evaluate.paper_benchmark: KOSPI`를 추가해 portfolio_metrics.csv에 `aer_vs_index`, `ir_vs_index`, `beta_vs_index`, `alpha_vs_index`, `tracking_error_vs_index`, `monthly_hit_ratio_vs_index`, `paper_benchmark` 열이 함께 나온다. fake_dummy_base 예: equal_weight AER 0 / IR — (자기 자신) vs KOSPI 대비 AER −16.9%p, IR −1.36, beta 1.02; random_topk KOSPI 대비 AER −30.0%p, IR −2.13.
+2. **거래소별 분해(D-16, `evaluate.by_market: true`)**:
+   - IC를 거래소 안에서 횡단면으로 계산한 `ic_by_market`(signal_metrics.json, ic_timeseries.csv의 `ic_<col>@<market>` 열). 오라클 exp_ret KOSPI 0.943 / KOSDAQ 0.943, 더미 0.003 / 0.011; naive mom20 KOSPI −0.040 / KOSDAQ −0.059, rev5 +0.031 / +0.036 (단기 반전은 KOSDAQ이 조금 더 강하다).
+   - 전략 성과 기여도 portfolio_by_market.csv(전략 × 거래소: 평균 비중, 누적·연율 기여, 서브북 CAGR, 평균 종목 수). fake_dummy_base·논문 비용: EqualWeight는 KOSDAQ 비중 58%에서 연 −5.4%p 기여(서브북 CAGR −13.5%), KOSPI 42%에서 +4.7%p(+10.0%) — 풀링 EW의 부진이 KOSDAQ 쪽에서 왔다. momentum20_topk는 KOSDAQ 72%·KOSPI 28% 모두 서브북 CAGR −50% 이하. random_topk는 KOSPI 서브북 +33%, KOSDAQ −27%.
+   - 근사: 전일 종가 비중 × 당일 수정 종가 수익률의 합이라 체결일 두 조각과 비용은 거래소별로 나누지 않는다(합계는 NAV 수익률과 거의 같다).
+3. **DSR 시도 수(D-17, 에이전트 판단)**: 전역 장부 data/F_metrics/trials.csv(run_id, profile, fake, engine, strategy, config_hash, sharpe, cagr)를 두고, n_trials = 같은 프로필의 실제(비가짜) run_id 시도 수. 가짜 run_id는 자기 행만 센다(현재 각 6). 근거는 decisions.md D-17. `evaluate.dsr_scope: all`이면 프로필 구분 없이 센다.
+4. **D-5 적용 뒤 재생성**: 가짜 예측 4종을 liq5 유니버스로 다시 만들었다(예측 파일 base 267 MB·219 MB, paper 1.3 GB·1.1 GB). 시그널 행은 base ∩ 예측이라 이전과 동일(base 42,008행, paper 215,406행)이고 `n_predicted_outside_universe`가 base 12,963·paper 67,394(liq5에만 있는 종목)로 기록된다. 전략·엔진·지표 수치는 변하지 않았다.
+5. 테스트 3개 추가(거래소별 기여 손계산, n_trials 범위, 실제 산출물의 지수 벤치마크·거래소별 열). 전체 96 passed.
+
+**남은 결정**: backtest.delist_policy(제안 last_close). 거래소별 **실행**(유니버스를 한 거래소로 제한한 run_id)은 넣지 않았다. 필요하면 `universe.indices`를 바꿔 별도 run_id로 돌린다.

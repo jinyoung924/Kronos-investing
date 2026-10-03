@@ -1,0 +1,8 @@
+# RunPod inference environment (appendix C-1, D-8). The Pod template must ship this torch build; setup_pod.sh checks it.
+# Versions = what the local CPU smoke test (macOS, Python 3.12) ran with on 2026-10-03.
+-r requirements.txt
+torch==2.14.1
+huggingface_hub==2.1.1
+einops==0.8.2
+safetensors==0.8.0
+tqdm==4.66.4

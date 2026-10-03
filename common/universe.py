@@ -15,12 +15,14 @@ from common.config import cfg_get
 from common.paths import Paths
 
 
-def load_constituents(cfg: dict, root: str | Path = ".", indices=None) -> dict[str, pd.DataFrame]:
+def load_constituents(cfg: dict, root: str | Path = ".", indices=None, variant: str | None = None) -> dict[str, pd.DataFrame]:
+    """constituents per index key; variant=None -> cfg universe.variant (backtest universe). B_model_infer passes the
+    profile's universe_variant (D-5)."""
     paths = Paths(cfg, root)
     indices = list(indices) if indices is not None else list(cfg_get(cfg, "universe.indices", []))
     out = {}
     for idx in indices:
-        f = paths.constituents_file(idx)
+        f = paths.constituents_file(idx, variant)
         if not f.exists():
             raise FileNotFoundError(f"missing {f}; provide (date, ticker) snapshots there")
         out[idx] = normalize_constituents(pd.read_parquet(f))

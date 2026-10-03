@@ -22,6 +22,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from B_model_infer.env_info import collect_env  # noqa: E402
 from common.config import ConfigError, cfg_get, cfg_override, load_config  # noqa: E402
 from common.data import load_prices, rebalance_dates, trading_calendar  # noqa: E402
 from common.meta import atomic_parquet, git_commit_hash, write_json_atomic  # noqa: E402
@@ -47,7 +48,8 @@ def profile_cfg(cfg: dict, name: str | None = None) -> dict:
     return {"profile": name, **prof}
 
 
-def make_backend(cfg: dict, name: str, prices: pd.DataFrame, signal_strength: float = 0.0, profile: str | None = None):
+def make_backend(cfg: dict, name: str, prices: pd.DataFrame, signal_strength: float = 0.0, profile: str | None = None,
+                 allow_unpinned: bool = False):
     seed = int(cfg_get(cfg, "project.seed", 0))
     if name == "dummy":
         from B_model_infer.backends import DummyBackend
@@ -55,29 +57,40 @@ def make_backend(cfg: dict, name: str, prices: pd.DataFrame, signal_strength: fl
     if name == "kronos":
         from B_model_infer.backends import KronosBackend
         prof = profile_cfg(cfg, profile)
+        rev, trev = cfg_get(cfg, "model.revision"), cfg_get(cfg, "model.tokenizer_revision")
+        if (not rev or not trev) and not allow_unpinned:
+            raise ConfigError("model.revision / model.tokenizer_revision are null: pin the HF commit shas (appendix D), "
+                              "or pass --allow-unpinned for a smoke test (the resolved shas are written to the manifest)")
+        dtype = str(cfg_get(cfg, "model.dtype", "float32"))
+        if dtype != "float32":
+            raise ConfigError(f"model.dtype {dtype!r} is not supported: keep float32 (bf16 changes the numbers)")
+        bs = cfg_get(cfg, "model.batch_size")
+        if bs is None:
+            raise ConfigError("model.batch_size is null: fill it from the Pod probe (appendix C-2) or pass --batch-size")
         return KronosBackend(
             model_name=cfg_get(cfg, "model.name"), tokenizer_name=cfg_get(cfg, "model.tokenizer"),
-            revision=cfg_get(cfg, "model.revision"), kronos_repo=cfg_get(cfg, "model.kronos_repo"),
+            revision=rev or None, tokenizer_revision=trev or None, kronos_repo=cfg_get(cfg, "model.kronos_repo"),
             device=cfg_get(cfg, "model.device", "cuda:0"), max_context=int(cfg_get(cfg, "model.max_context", 512)),
             temperature=float(prof["temperature"]), top_p=float(prof["top_p"]),
-            top_k=int(cfg_get(cfg, "model.top_k", 0)), batch_size=int(cfg_get(cfg, "model.batch_size", 256)),
-            seed=seed,
+            top_k=int(cfg_get(cfg, "model.top_k", 0)), batch_size=int(bs), seed=seed,
         )
     raise ValueError(f"unknown backend {name}")
 
 
 def run(cfg: dict, run_id: str, backend, root: Path = Path("."), prices: pd.DataFrame | None = None,
         constituents: dict | None = None, log=print, extra_manifest: dict | None = None,
-        profile: str | None = None) -> list[pd.Timestamp]:
+        profile: str | None = None, max_tickers: int | None = None) -> list[pd.Timestamp]:
     """Core loop, importable for tests and for make_fake_predictions. Returns dates written.
-    profile: inference profile name (None = infer.default_profile)."""
+    profile: inference profile name (None = infer.default_profile). max_tickers: smoke tests only, keep the first N
+    universe members per date (recorded in the manifest; never used for a real run)."""
     paths = Paths(cfg, root)
+    prof = profile_cfg(cfg, profile)
+    infer_variant = prof.get("universe_variant") or cfg_get(cfg, "universe.variant", "base")   # D-5
     if prices is None:
         prices = load_prices(cfg, root, include_benchmark=False)
     if constituents is None:
-        constituents = load_constituents(cfg, root)
+        constituents = load_constituents(cfg, root, variant=infer_variant)
 
-    prof = profile_cfg(cfg, profile)
     lookback, horizon = int(prof["lookback"]), int(prof["pred_len"])
     sample_count, step = int(prof["sample_count"]), int(prof["step"])
     start, end = cfg_get(cfg, "period.start"), cfg_get(cfg, "period.end")
@@ -96,9 +109,12 @@ def run(cfg: dict, run_id: str, backend, root: Path = Path("."), prices: pd.Data
         "hf_revision_resolved": getattr(backend, "resolved_revision", None),
         "lookback": lookback, "pred_len": horizon, "temperature": prof["temperature"],
         "top_p": prof["top_p"], "top_k": cfg_get(cfg, "model.top_k"), "sample_count": sample_count,
-        "universe": cfg_get(cfg, "universe.indices"), "universe_variant": cfg_get(cfg, "universe.variant", "base"),
+        "universe": cfg_get(cfg, "universe.indices"), "universe_variant": infer_variant,
+        "backtest_universe_variant": cfg_get(cfg, "universe.variant", "base"), "dtype": cfg_get(cfg, "model.dtype", "float32"),
+        "env": collect_env(cfg_get(cfg, "model.device"), str(cfg_get(cfg, "model.dtype", "float32"))),
         "start": start, "end": end,
         "step": step, "n_rebalance_dates": int(len(dates)), "code_commit": git_commit_hash(root),
+        "max_tickers": max_tickers, "smoke": max_tickers is not None,
         "started_at": manifest.get("started_at") or pd.Timestamp.utcnow().isoformat(),
         "last_updated_at": pd.Timestamp.utcnow().isoformat(), "config": cfg,
     })
@@ -107,12 +123,20 @@ def run(cfg: dict, run_id: str, backend, root: Path = Path("."), prices: pd.Data
 
     written: list[pd.Timestamp] = []
     skipped_log = manifest.setdefault("skipped_by_date", {})
+    env_by_date = manifest.setdefault("env_by_date", {})
+    elapsed_by_date = manifest.setdefault("elapsed_by_date", {})
+    env = manifest["env"]
+    session = {"started_at": pd.Timestamp.utcnow().isoformat(), "hostname": env.get("hostname"), "gpu_name": env.get("gpu_name"),
+               "pod_id": env.get("pod_id"), "n_written": 0, "finished_at": None}
+    manifest.setdefault("sessions", []).append(session)
     for i, d in enumerate(dates):
         out = paths.prediction_file(run_id, d)
         if out.exists():
             log(f"[{i+1}/{len(dates)}] {d.date()} exists, skip")
             continue
         members = combined_universe_at(constituents, d)["ticker"].tolist()
+        if max_tickers is not None:
+            members = members[: int(max_tickers)]
         batch = build_batch(prices, members, d, lookback, horizon, max_stale_days=max_stale)
         t0 = time.time()
         if len(batch) == 0:
@@ -126,11 +150,16 @@ def run(cfg: dict, run_id: str, backend, root: Path = Path("."), prices: pd.Data
         written.append(d)
         skipped_log[str(d.date())] = {"n_pred": len(batch), "n_skipped": len(batch.skipped),
                                       "skip_reasons": _count_reasons(batch.skipped)}
+        env_by_date[str(d.date())] = {"gpu_name": env.get("gpu_name"), "driver_version": env.get("driver_version"), "hostname": env.get("hostname")}
+        elapsed_by_date[str(d.date())] = round(time.time() - t0, 2)
+        session["n_written"] = len(written)
         manifest["last_updated_at"] = pd.Timestamp.utcnow().isoformat()
         write_json_atomic(manifest_path, manifest)
         log(f"[{i+1}/{len(dates)}] {d.date()} tickers={len(batch)} skipped={len(batch.skipped)} "
             f"rows={len(df)} {time.time()-t0:.1f}s")
-    manifest["completed_at"] = pd.Timestamp.utcnow().isoformat()
+    session["finished_at"] = pd.Timestamp.utcnow().isoformat()
+    manifest["completed_at"] = session["finished_at"]
+    manifest["n_files_present"] = len(list(paths.predictions_dir(run_id).glob("as_of=*.parquet")))
     write_json_atomic(manifest_path, manifest)
     return written
 
@@ -154,7 +183,9 @@ def parse_args(argv=None):
     p.add_argument("--step", type=int); p.add_argument("--lookback", type=int); p.add_argument("--horizon", type=int)
     p.add_argument("--sample-count", type=int); p.add_argument("--batch-size", type=int)
     p.add_argument("--device"); p.add_argument("--temperature", type=float); p.add_argument("--top-p", type=float)
-    p.add_argument("--model"); p.add_argument("--tokenizer"); p.add_argument("--revision"); p.add_argument("--kronos-repo")
+    p.add_argument("--model"); p.add_argument("--tokenizer"); p.add_argument("--revision"); p.add_argument("--tokenizer-revision"); p.add_argument("--kronos-repo")
+    p.add_argument("--allow-unpinned", action="store_true", help="smoke tests only: run without pinned HF revisions")
+    p.add_argument("--max-tickers", type=int, help="smoke tests only: first N universe members per date")
     return p.parse_args(argv)
 
 
@@ -169,14 +200,14 @@ def main(argv=None):
         f"{prof}.step": a.step, f"{prof}.lookback": a.lookback, f"{prof}.pred_len": a.horizon,
         f"{prof}.sample_count": a.sample_count, f"{prof}.temperature": a.temperature, f"{prof}.top_p": a.top_p,
         "model.batch_size": a.batch_size, "model.device": a.device, "model.name": a.model, "model.tokenizer": a.tokenizer,
-        "model.revision": a.revision, "model.kronos_repo": a.kronos_repo,
+        "model.revision": a.revision, "model.tokenizer_revision": a.tokenizer_revision, "model.kronos_repo": a.kronos_repo,
     })
     p = profile_cfg(cfg, profile)
     if int(p["step"]) != int(p["pred_len"]):
         print(f"note: profile {p['profile']} step={p['step']} != pred_len={p['pred_len']} (weekly profile expects equal)")
     prices = load_prices(cfg, root, include_benchmark=False)
-    backend = make_backend(cfg, a.backend, prices, profile=profile)
-    written = run(cfg, a.run_id, backend, root=root, prices=prices, profile=profile)
+    backend = make_backend(cfg, a.backend, prices, profile=profile, allow_unpinned=a.allow_unpinned)
+    written = run(cfg, a.run_id, backend, root=root, prices=prices, profile=profile, max_tickers=a.max_tickers)
     print(f"done: {len(written)} new date files in {Paths(cfg, root).predictions_dir(a.run_id)}")
 
 

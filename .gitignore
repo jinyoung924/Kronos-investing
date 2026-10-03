@@ -23,3 +23,6 @@ reports/
 logs/
 .DS_Store
 .env
+# local clone of the Kronos model code (configs model.kronos_repo); fetched by setup_pod.sh / by hand
+Kronos/
+data/pod_bundles/

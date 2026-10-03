@@ -130,3 +130,21 @@
 - K = 50 (논문 CSI 300 설정, 공식 레포 n\_symbol\_hold 50): strategies.momentum20\_topk.k, random\_topk.k, vol\_target.k, topk.k = 50, topk.n\_drop = 5, hold\_min\_days 5. CSI 800 대응(k 200, n 10)은 `--set`으로 돌린다.
 - 결과 폴더: paper 비용이 기본이므로 기본 결과 폴더는 `@paper_costs`다(Stage 4의 접미사 규칙 유지).
 - 미결: `backtest.delist_policy`(Stage 4 질문 2, 제안 last\_close). 정해질 때까지 실행에 `--set backtest.delist_policy=last_close`를 쓴다.
+
+## Stage 5 보고서 후속 (2026-10-03)
+
+### D-16. 벤치마크와 거래소별 분해
+
+- 주 벤치마크는 잠정안대로 `evaluate.benchmark: equal_weight`(같은 종목 집합의 EqualWeight, 같은 엔진·비용 시나리오)를 유지한다. AER·IR 등 상대 지표의 기본 기준이다.
+- 논문 재현(TopK, paper 프로필)의 AER·IR 기준으로 **지수 벤치마크를 추가**한다: `evaluate.paper_benchmark: KOSPI`(CSI 300 대응). portfolio\_metrics.csv에 `*_vs_index` 열(aer, ir, beta, alpha, tracking\_error, monthly\_hit)로 함께 나온다.
+- 거래소별 분해(`evaluate.by_market: true`): IC는 거래소 **안에서** 횡단면을 잡아 KOSPI·KOSDAQ 따로 계산하고, 전략 성과는 보유 비중 × 일간 수익률을 거래소별로 합산한 기여도(평균 비중, 연율 기여, 서브북 CAGR)로 분해한다(portfolio\_by\_market.csv).
+
+### D-17. Deflated Sharpe의 시도 수 범위 (에이전트 판단)
+
+- 전역 장부 data/F\_metrics/trials.csv에 모든 run\_id의 시도(run\_id, profile, fake 여부, engine, strategy, config\_hash, sharpe)를 쌓는다.
+- n\_trials = **같은 프로필의 실제(비가짜) run\_id 시도 수**(엔진·전략·설정 해시가 다른 행 수). 가짜 run\_id(dummy·oracle)는 파이프라인 검증 장치라 실제 결과의 시도 수에 넣지 않고, 가짜 run\_id 자신을 채점할 때는 자기 행만 센다.
+- 이유: DSR은 같은 데이터(같은 기간·유니버스·H)에서 "몇 번 시도해 고른 결과인가"를 보정한다. 프로필이 다르면 H와 리밸런싱 주기가 달라 비교 대상이 아니고, 가짜 예측은 선택 과정의 시도가 아니다. K를 `--set`으로 바꾼 실행은 config\_hash가 달라 시도 수에 들어간다.
+
+### D-5 적용 (부록 C-1)
+
+- `infer.profiles.<p>.universe_variant: liq5`. run\_inference·make\_fake\_predictions가 이 변형으로 유니버스를 읽고 manifest에 기록한다. 백테스트 유니버스는 `universe.variant`(base) 그대로이며 C\_signal의 교집합(D-3)이 걸러 준다. 기존 가짜 예측은 liq5로 다시 생성한다.

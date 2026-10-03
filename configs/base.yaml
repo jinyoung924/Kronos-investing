@@ -29,6 +29,7 @@ data:
   price_file: prices.parquet
   # --- stage outputs (common/paths.py) ---
   prepared_dir: data/A_prepared
+  bundles_dir: data/pod_bundles  # appendix C-1 pod bundles (not committed)
   predictions_dir: data/B_predictions
   signals_dir: data/C_signals
   weights_dir: data/D_weights
@@ -78,11 +79,14 @@ krx:                           # A_data_prepare (KRX Open API). Do not rename.
 model:                         # D-7: Kronos model identity and GPU runtime (B_model_infer). Per-profile sampling knobs live in infer.profiles
   name: NeoQuasar/Kronos-base
   tokenizer: NeoQuasar/Kronos-Tokenizer-base
-  revision: main               # HF revision; the resolved commit sha is written to manifest.json
+  revision: null               # [사용자] HF commit sha of the model (appendix D: never a branch name). The CPU smoke test resolves `main` and reports the sha
+  tokenizer_revision: null     # [사용자] HF commit sha of the tokenizer
   kronos_repo: ./Kronos        # local clone of https://github.com/shiyu-coder/Kronos (provides `model` package)
+  kronos_repo_commit: null     # [사용자] commit of that clone; setup_pod.sh checks it out (smoke test reports the local HEAD)
+  dtype: float32               # keep float32 (bf16 changes the numbers); anything else is refused
   top_k: 0
   max_context: 512
-  batch_size: 256              # sequences per forward pass (tickers x samples); tune to GPU memory
+  batch_size: null             # sequences per forward pass (tickers x samples); fill from the Pod probe (C-2). --batch-size for one run
   device: cuda:0
 
 infer:                         # D-7: inference profiles. One run_id follows one profile; manifest.profile records it. seed = project.seed only
@@ -94,7 +98,8 @@ infer:                         # D-7: inference profiles. One run_id follows one
       step: 5                  # as_of spacing in trading days. 5 = weekly
       temperature: 1.0
       top_p: 0.9
-      sample_count: 20
+      sample_count: 20         # [사용자] 20 (appendix C choice 2: a larger count makes sample-size sensitivity possible without re-inference)
+      universe_variant: liq5   # D-5: inference universe (base ⊆ liq5 every day); the backtest universe is universe.variant, C_signal intersects (D-3)
     paper:                     # original paper's investment simulation (§4.2.3, appendix D.3.3, table 6; spec appendix C)
       lookback: 90
       pred_len: 10
@@ -102,6 +107,7 @@ infer:                         # D-7: inference profiles. One run_id follows one
       temperature: 0.6
       top_p: 0.9
       sample_count: 10         # paper table 6: N = 10. The official repo's finetune/config.py uses 5
+      universe_variant: liq5   # D-5
 
 signal:                        # C_signal. D-3: signal rows = that day's backtest universe ∩ tickers present in the run_id's prediction file;
                                #           baseline features are attached to those rows only, so every strategy picks from the same set
@@ -146,8 +152,11 @@ backtest:
     max_participation: null    # [사용자] order value / same-day traded value cap
 
 evaluate:
-  benchmark: equal_weight      # D-6 (tentative, fixed in Stage 5): equal_weight of the same signal universe | an index ticker in data.index_tickers (e.g. KOSPI)
+  benchmark: equal_weight      # D-6/D-16: main benchmark for AER/IR etc. = equal_weight of the same signal universe (or an index ticker)
+  paper_benchmark: KOSPI       # D-16: paper-replication benchmark (CSI 300 analogue) -> second set of relative metrics *_vs_index
   reference_indices: [KOSPI, KOSDAQ]   # D-6: index buy & hold reported alongside as reference lines
+  by_market: true              # D-16: IC within each market's cross-section and return contribution by market (prices.market)
+  dsr_scope: profile           # D-17: Deflated Sharpe trial count = real (non-fake) trials of the same profile in the global ledger; a fake run_id counts only itself
   periods_per_year: 252
   risk_free: 0.0
   quantiles: 5

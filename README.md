@@ -35,7 +35,7 @@ tests/                 test_common.py (Stage 0), test_data_prepare.py, test_no_l
 ```bash
 pip install -r requirements.txt       # 로컬 백테스트 + 테스트 (버전 고정)
 pip install quantstats                # 선택: Stage 5 지표 교차검증 테스트 (없으면 해당 테스트 skip)
-pip install -e ".[infer]"             # RunPod: torch, huggingface_hub 등
+pip install -r requirements-infer.txt # RunPod / 로컬 스모크: torch, huggingface_hub, einops, safetensors, tqdm (버전 고정)
 git clone https://github.com/shiyu-coder/Kronos ./Kronos   # RunPod: model 패키지 (configs: model.kronos_repo)
 pytest
 ```
@@ -60,12 +60,21 @@ python -m A_data_prepare.run_prepare                # Stage 1: data/raw + data/u
   `calendar`(date), `halts`(date, ticker, is_halted), `adj_factor`(date, ticker, factor; 첫날 1인 전진 누적 F, 수정가 = raw × F),
   `events`(ticker, ex_date, ratio, r, applied, ...), `universe`(date, ticker, market; `universe.variant`), `benchmark`(지수·ETF 레벨), `meta.json`
 
-## 추론 (RunPod GPU)
+## 추론 (RunPod GPU, docs/spec.md 부록 C·D)
 
 ```bash
-python -m B_model_infer.run_inference --run-id kronos_base_v1 --config configs/base.yaml
-python -m B_model_infer.run_inference --run-id check --backend dummy --start 2024-07-01 --end 2024-07-01   # 로컬 배선 확인
+# 로컬 (C-1): 번들 만들기 -> Pod로 올리기 -> Pod에서 setup_pod.sh -> 실행 -> 체크섬 -> 로컬 회수 검증
+python -m B_model_infer.pod_bundle pack --run-id kronos_base_v1            # data/pod_bundles/kronos_base_v1.tar.gz (코드 git archive + prices + liq5 유니버스 + inputs.sha256.json)
+bash B_model_infer/pod/setup_pod.sh /workspace/kronos_base_v1.tar.gz /workspace   # Pod: 풀기, verify, torch 버전 검사, pip, Kronos 코드 체크아웃, 모델 다운로드, env 출력
+python -m B_model_infer.run_inference --backend kronos --run-id kronos_base_v1 --root /workspace/repo   # Pod, tmux 안에서
+python -m B_model_infer.checksum write  --run-id kronos_base_v1            # Pod
+python -m B_model_infer.checksum verify --run-id kronos_base_v1            # 로컬, 내려받은 뒤
+# 로컬 CPU 스모크 (Kronos 코드 ./Kronos, torch 필요: pip install -r requirements-infer.txt)
+python -m B_model_infer.run_inference --backend kronos --run-id smoke_cpu --device cpu --batch-size 4 --sample-count 2 --max-tickers 5 --allow-unpinned --start 2024-07-01 --end 2024-07-01
+python -m B_model_infer.run_inference --run-id check --backend dummy --start 2024-07-01 --end 2024-07-01   # 배선 확인 (torch 불필요)
 ```
+
+실제 실행 전에 `model.revision`, `model.tokenizer_revision`(HF 커밋 sha), `model.kronos_repo_commit`, `model.batch_size`(Pod probe)를 채운다. 추론 유니버스는 프로필의 `universe_variant`(liq5, D-5)이고 백테스트 유니버스(base)와의 교집합은 C_signal이 만든다(D-3).
 
 샘플링 설정(lookback, pred_len, step, T, top_p, sample_count)은 `infer.profiles.<infer.default_profile>`에서 읽고 CLI 플래그로 덮어쓸 수 있다.
 출력은 `data/B_predictions/{run_id}/as_of=YYYY-MM-DD.parquet` + `manifest.json`. 재개 가능(이미 있는 날짜는 건너뜀).
