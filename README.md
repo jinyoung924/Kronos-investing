@@ -21,7 +21,8 @@ common/                config.py paths.py schema.py lookahead.py meta.py data.py
 A_data_prepare/        KRX Open API -> data/raw, data/universe (docs/data_pipeline.md); run_prepare.py -> data/A_prepared/ (Stage 1)
 B_model_infer/         Kronos 추론 (RunPod). build_batch.py backends.py run_inference.py make_fake_predictions.py -> data/B_predictions/{run_id}/
 C_signal/              aggregate.py baseline_features.py run_signal.py -> data/C_signals/{run_id}/signals.parquet (Stage 2)
-D_strategy/ E_backtest/ F_evaluate/ G_report/   Stage 3~8에서 채움 (지금은 빈 패키지)
+D_strategy/            base.py registry.py equal_weight.py momentum20_topk.py random_topk.py run_strategy.py -> data/D_weights/{run_id}/{strategy}.parquet (Stage 3)
+E_backtest/ F_evaluate/ G_report/   Stage 4~8에서 채움 (지금은 빈 패키지)
 scripts/probes/        [확인 필요] 항목을 실제 데이터로 확인하는 1회성 스크립트
 data/                  krx_raw/<snapshot>/ raw/ universe/ MANIFEST.json (수집 산출물, 유지) + A_prepared/ B_predictions/ ... (단계 산출물)
 tests/                 test_common.py (Stage 0), test_data_prepare.py, test_no_lookahead.py
@@ -74,10 +75,13 @@ python -m B_model_infer.run_inference --run-id check --backend dummy --start 202
 python -m B_model_infer.make_fake_predictions --kind dummy    # data/B_predictions/fake_dummy_base/  (랜덤워크, 정보 없음)
 python -m B_model_infer.make_fake_predictions --kind oracle   # data/B_predictions/fake_oracle_base/ (실제 미래 가격, 엔진 배선 테스트 전용)
 python -m C_signal.run_signal --run-id fake_oracle_base       # data/C_signals/fake_oracle_base/signals.parquet + meta.json
+python -m D_strategy.run_strategy --run-id fake_dummy_base --strategy all   # data/D_weights/fake_dummy_base/{strategy}.parquet (+ .meta.json)
 ```
+
+`--profile paper`로 paper 프로필(매 거래일, H 10, N 10) 가짜 예측도 만든다(fake_{dummy,oracle}_paper). 전략은 `D_strategy/<name>.py` 하나에 하나이며 이름 = 파일명 = `strategies.<name>` 설정 키다.
 
 시그널 행은 그날 유니버스 ∩ 예측이 있는 종목이다(D-3). 컬럼: `as_of_date, ticker, exp_ret, exp_ret_mean, std, p_up, pred_range, n_samples, last_close, mom20, vol20, rev5`.
 
 ## 진행
 
-[docs/spec.md](docs/spec.md)의 "사용법"대로 한 Stage씩 진행한다. 완료: Stage 0 (기반 정리), Stage 1 (A_data_prepare 기준 데이터), Stage 2 (가짜 예측 + C_signal). 다음: Stage 3 (D_strategy 인터페이스와 벤치마크).
+[docs/spec.md](docs/spec.md)의 "사용법"대로 한 Stage씩 진행한다. 완료: Stage 0 (기반 정리), Stage 1 (A_data_prepare 기준 데이터), Stage 2 (가짜 예측 + C_signal), Stage 3 (D_strategy 인터페이스와 벤치마크). 다음: Stage 4 (E_backtest 엔진 v1과 비용).

@@ -84,8 +84,8 @@ def input_hashes(inputs: Iterable[str | Path] | Mapping[str, str | Path] | None)
 
 
 def write_meta(out_dir: str | Path, cfg: dict, inputs=None, extra: Mapping[str, Any] | None = None,
-               root: str | Path = ".") -> Path:
-    """Write out_dir/meta.json. `extra` carries run_id / stage / strategy / engine (and anything else)."""
+               root: str | Path = ".", filename: str = META_FILENAME) -> Path:
+    """Write out_dir/<filename> (default meta.json). `extra` carries run_id / stage / strategy / engine (and anything else)."""
     doc: dict[str, Any] = {
         "run_id": None, "stage": None, "strategy": None, "engine": None,
         "config_hash": config_hash(cfg),
@@ -94,8 +94,8 @@ def write_meta(out_dir: str | Path, cfg: dict, inputs=None, extra: Mapping[str, 
         "run_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
     doc.update(dict(extra or {}))
-    return write_json_atomic(Path(out_dir) / META_FILENAME, doc)
+    return write_json_atomic(Path(out_dir) / filename, doc)
 
 
-def read_meta(out_dir: str | Path) -> dict:
-    return json.loads((Path(out_dir) / META_FILENAME).read_text(encoding="utf-8"))
+def read_meta(out_dir: str | Path, filename: str = META_FILENAME) -> dict:
+    return json.loads((Path(out_dir) / filename).read_text(encoding="utf-8"))

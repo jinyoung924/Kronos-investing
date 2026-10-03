@@ -105,3 +105,19 @@ Stage 2 본문에는 `[확인 필요]` 표시가 없다. 사용자 확인 항목
 2. **D-12 해석**: "paper 프로필 실행을 추가하지 않는다"를 "paper 가짜 예측 산출물도 만들지 않는다"로 읽었다. spec 완료 기준(네 run_id)을 원하면 `make_fake_predictions --kind dummy --profile paper`로 즉시 만들 수 있지만 1번 때문에 시그널은 만들 수 없다.
 3. **dummy 정의**: spec의 i.i.d. 정의가 꼭 필요하면 OracleBackend처럼 간단한 백엔드를 추가할 수 있다. 현재는 DummyBackend(D-3 지시)다.
 4. 커밋에 docs/decisions.md(사용자가 추가한 D-10~D-13, 내용 변경 없음)를 포함했다. docs/outline.md 수정분과 논문 PDF는 여전히 커밋하지 않았다.
+
+## 후속 수정 (2026-10-03, 사용자 지시 "spec 우선, decisions.md를 맞춘다")
+
+**수행한 것**
+
+1. **D-11 정정**: `signal.n_samples`를 프로필별 매핑 `{base: 20, paper: 10}`으로 바꿨다(configs, decisions.md D-11 본문 수정). run_signal은 manifest.profile로 값을 고른다(`n_samples_for`). 정수 하나를 주면 모든 프로필에 적용된다.
+2. **D-12 정정**: spec 완료 기준대로 paper 프로필 가짜 예측 두 개를 만들었다(decisions.md D-12 본문 수정: "paper 프로필 실행 금지"는 실제 Kronos 추론에만 해당).
+   - `make_fake_predictions --kind dummy|oracle --profile paper`: fake_dummy_paper, fake_oracle_paper 각 241 as_of 파일(매 거래일 2024-07-01 ~ 2025-06-30), H 10, N 10. 디스크 1.0 GB + 0.86 GB (gitignore).
+   - `run_signal`: 두 run_id 모두 215,406행, 241일, 종목/일 825 ~ 1,072, 제외 4,298(lookback 90이라 base보다 적다). 오라클 paper도 실현 10거래일 수익률과 일치(테스트).
+3. **run_signal 메모리**: paper는 예측 2,150만 행이라 as_of 파일 하나씩 집계한 뒤 합친다(`aggregate_in_universe` + `attach_features`로 분리, `build_signals`는 둘의 합성). 결과는 이전과 동일하다. paper 한 run_id 25초.
+4. dummy 정의는 spec 부록 A가 DummyBackend를 허용하므로 유지(D-3).
+5. 테스트: n_samples 매핑 반영, 실제 생성물 검사를 네 run_id로 확장(paper는 일별 as_of 수를 달력에서 계산). 전체 67 passed(Stage 3 포함).
+
+**완료 기준 갱신**: fake_{dummy,oracle}_{base,paper} 네 run_id의 signals.parquet 생성 — 충족.
+
+**남은 질문**: 없음(1·2번 해결). 커밋은 설정 파일이 겹쳐 Stage 3과 한 커밋으로 묶었다.

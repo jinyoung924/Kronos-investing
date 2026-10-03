@@ -94,13 +94,13 @@
 
 ### D-11. 시그널 샘플 수 (Stage 2)
 
-- `signal.n_samples: 20`을 추가한다.
-- C\_signal/aggregate는 (as\_of, ticker)마다 sample\_id 오름차순으로 앞의 n\_samples개만 쓴다. 샘플이 n\_samples보다 적으면 오류를 낸다.
+- `signal.n_samples`를 **프로필별 매핑**으로 둔다: `{base: 20, paper: 10}` (2026-10-03 수정: spec의 paper 프로필 sample\_count 10과 맞추기 위해. 원래는 단일 값 20이었다).
+- C\_signal/aggregate는 (as\_of, ticker)마다 sample\_id 오름차순으로 앞의 n\_samples\[profile\]개만 쓴다. 샘플이 그보다 적으면 오류를 낸다. run\_id의 프로필은 manifest.profile에서 읽는다.
 - 예측의 sample\_count가 더 커도(부록 C 선택 2) 시그널은 같은 정의를 유지한다.
 
 ### D-12. Stage 2 범위
 
-- spec의 Stage 2 범위만 구현한다. 추론 프로필은 default 프로필(base)만 쓰고, paper 프로필 실행이나 spec에 없는 추론 옵션은 추가하지 않는다. 필요하다고 판단되면 보고서의 "질문"에 남긴다.
+- spec의 Stage 2 범위를 그대로 구현한다(2026-10-03 수정: spec 우선). 가짜 예측은 spec대로 base·paper 두 프로필 모두 만든다(fake\_{dummy,oracle}\_{base,paper}). "paper 프로필 실행을 추가하지 않는다"는 **실제 Kronos 추론**(RunPod)에만 해당하며 그것은 Stage 6·부록 C에서 한다. spec에 없는 추론 옵션은 추가하지 않는다.
 - `universe.top_n_mktcap`은 null로 유지한다.
 
 ### D-13. Stage 1 확인 결과
@@ -108,3 +108,7 @@
 - 시가 0이면서 소량 체결된 2행을 정지로 분류한 것: 승인
 - 설명되지 않은 급변 58행을 전부 정리매매로 판단한 것과 정지 해제일 제외 규칙: 승인, 현행 유지
 - 벤치마크에 market을 두지 않은 것: 승인. Stage 5에서 ETF에 비용을 붙여야 할 때 추가한다.
+
+## Stage 2 보고서 후속 (2026-10-03)
+
+사용자 지시: "spec의 구현을 우선으로 두고 decisions.md를 맞춘다." 이에 따라 D-11·D-12를 위와 같이 고쳤다. dummy의 정의는 spec 부록 A가 DummyBackend(signal\_strength 0)를 허용하므로 그대로 둔다(D-3 유지). 수행 내용과 새로 결정이 필요한 사항은 각 Stage 보고서의 "명세서와 달라진 점"·"질문" 절에 계속 적는다.

@@ -5,7 +5,7 @@
 
 Per as_of date (D-3): signal rows = that day's backtest universe (data/A_prepared/universe, universe.variant)
 ∩ tickers present in the prediction file. Baseline features are attached to those rows only. H and N come
-from the run_id's manifest; signal.n_samples (D-11) samples are used. last_close = as_of close on
+from the run_id's manifest; signal.n_samples[profile] (D-11) samples are used. last_close = as_of close on
 data.price_basis (D-1: raw). meta.json copies profile / H / N and keeps per-date universe, prediction and
 exclusion counts. The only module of the stage that touches files; imports only `common`.
 """
@@ -32,19 +32,6 @@ from common.schema import validate_predictions, validate_signals  # noqa: E402
 from common.universe import get_universe  # noqa: E402
 
 STAGE = "C_signal"
-
-
-def load_prediction_files(paths: Paths, run_id: str, horizon: int) -> tuple[pd.DataFrame, dict[str, Path]]:
-    pdir = paths.predictions_dir(run_id)
-    files = sorted(pdir.glob("as_of=*.parquet"))
-    if not files:
-        raise FileNotFoundError(f"no prediction files under {pdir}")
-    frames, inputs = [], {}
-    for f in files:
-        d = as_of_from_filename(f)
-        frames.append(validate_predictions(pd.read_parquet(f), as_of=d, horizon=horizon))
-        inputs[f.name] = f
-    return pd.concat(frames, ignore_index=True), inputs
 
 
 def last_close_table(prices: pd.DataFrame, adj_factor: pd.DataFrame, dates, price_basis: str) -> pd.DataFrame:
@@ -81,19 +68,38 @@ def intersect_universe(preds: pd.DataFrame, universe: pd.DataFrame, manifest: di
     return preds[keep.to_numpy()], by_date
 
 
-def build_signals(preds: pd.DataFrame, prices: pd.DataFrame, adj_factor: pd.DataFrame, universe: pd.DataFrame,
-                  manifest: dict, cfg: dict) -> tuple[pd.DataFrame, dict]:
-    """Pure core of the stage: predictions + prepared tables -> (signals, per-date stats)."""
-    horizon = int(manifest["pred_len"])
-    n_samples = int(require(cfg, "signal.n_samples"))
+def n_samples_for(cfg: dict, profile: str | None) -> int:
+    """signal.n_samples is a profile -> int mapping (D-11); a bare int applies to every profile."""
+    v = require(cfg, "signal.n_samples")
+    if isinstance(v, dict):
+        if profile not in v or v[profile] is None:
+            raise ValueError(f"signal.n_samples has no entry for profile {profile!r} (keys {sorted(v)})")
+        return int(v[profile])
+    return int(v)
+
+
+def check_sample_count(manifest: dict, n_samples: int) -> None:
     if int(manifest["sample_count"]) < n_samples:
         raise ValueError(f"run manifest sample_count={manifest['sample_count']} < signal.n_samples={n_samples} (D-11)")
+
+
+def aggregate_in_universe(preds: pd.DataFrame, prices: pd.DataFrame, adj_factor: pd.DataFrame, universe: pd.DataFrame,
+                          manifest: dict, cfg: dict) -> tuple[pd.DataFrame, dict]:
+    """Prediction rows (any dates) -> (aggregated signals without features, per-date stats). Pure."""
+    horizon = int(manifest["pred_len"])
+    n_samples = n_samples_for(cfg, manifest.get("profile"))
+    check_sample_count(manifest, n_samples)
     kept, by_date = intersect_universe(preds, universe, manifest)
     if kept.empty:
         raise ValueError("no prediction rows inside the universe")
     dates = sorted(kept["as_of_date"].unique())
     lc = last_close_table(prices, adj_factor, dates, require(cfg, "data.price_basis"))
-    sig = aggregate_predictions(kept, lc, horizon, n_samples)
+    return aggregate_predictions(kept, lc, horizon, n_samples), by_date
+
+
+def attach_features(sig: pd.DataFrame, prices: pd.DataFrame, adj_factor: pd.DataFrame, universe: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    """Baseline features on the signal rows only (D-3), then validation and the universe guarantee. Pure."""
+    dates = sorted(sig["as_of_date"].unique())
     mw, vw, rw = (int(require(cfg, f"signal.{k}")) for k in ("mom_window", "vol_window", "rev_window"))
     feats = baseline_features(prices, adj_factor, dates, mw, vw, rw, ffill_limit=cfg_get(cfg, "data.ffill_limit"))
     out = sig.merge(feats, on=["as_of_date", "ticker"], how="left", validate="one_to_one")
@@ -105,7 +111,14 @@ def build_signals(preds: pd.DataFrame, prices: pd.DataFrame, adj_factor: pd.Data
     for d, grp in out.groupby("as_of_date"):
         if not set(grp["ticker"]) <= set(get_universe(universe, d)):
             raise AssertionError(f"signal rows outside the universe on {pd.Timestamp(d).date()}")
-    return out, by_date
+    return out
+
+
+def build_signals(preds: pd.DataFrame, prices: pd.DataFrame, adj_factor: pd.DataFrame, universe: pd.DataFrame,
+                  manifest: dict, cfg: dict) -> tuple[pd.DataFrame, dict]:
+    """Pure core of the stage: predictions + prepared tables -> (signals, per-date stats)."""
+    sig, by_date = aggregate_in_universe(preds, prices, adj_factor, universe, manifest, cfg)
+    return attach_features(sig, prices, adj_factor, universe, cfg), by_date
 
 
 def run_signal(cfg: dict, run_id: str, root: Path, log=print) -> dict:
@@ -115,20 +128,30 @@ def run_signal(cfg: dict, run_id: str, root: Path, log=print) -> dict:
         raise FileNotFoundError(f"missing {mpath}")
     manifest = json.loads(mpath.read_text(encoding="utf-8"))
     t0 = time.time()
-    preds, pred_inputs = load_prediction_files(paths, run_id, int(manifest["pred_len"]))
+    horizon = int(manifest["pred_len"])
+    pdir = paths.predictions_dir(run_id)
+    files = sorted(pdir.glob("as_of=*.parquet"))
+    if not files:
+        raise FileNotFoundError(f"no prediction files under {pdir}")
     prices = pd.read_parquet(paths.prepared_path("prices"), columns=["date", "ticker", "market", "close"])
     adj = pd.read_parquet(paths.prepared_path("adj_factor"))
     universe = pd.read_parquet(paths.prepared_path("universe"))
-    log(f"{run_id}: profile {manifest.get('profile')}, H {manifest['pred_len']}, N {manifest['sample_count']}, "
-        f"{len(pred_inputs)} as_of files, {len(preds):,} prediction rows")
-    signals, by_date = build_signals(preds, prices, adj, universe, manifest, cfg)
+    log(f"{run_id}: profile {manifest.get('profile')}, H {horizon}, N {manifest['sample_count']}, {len(files)} as_of files")
+    parts, by_date, pred_inputs, n_pred_rows = [], {}, {}, 0
+    for f in files:                                  # one file at a time: a daily profile has ~250 files of ~100k rows
+        preds = validate_predictions(pd.read_parquet(f), as_of=as_of_from_filename(f), horizon=horizon)
+        n_pred_rows += len(preds)
+        sig, bd = aggregate_in_universe(preds, prices, adj, universe, manifest, cfg)
+        parts.append(sig); by_date.update(bd); pred_inputs[f.name] = f
+    signals = attach_features(pd.concat(parts, ignore_index=True), prices, adj, universe, cfg)
+    log(f"{run_id}: {n_pred_rows:,} prediction rows aggregated")
     out_dir = paths.signals_dir(run_id)
     atomic_parquet(signals, paths.signals_path(run_id))
     n_sig = signals.groupby("as_of_date").size()
     summary = {
         "stage": STAGE, "run_id": run_id, "strategy": None, "engine": None,
         "profile": manifest.get("profile"), "H": int(manifest["pred_len"]), "N": int(manifest["sample_count"]),
-        "n_samples_used": int(require(cfg, "signal.n_samples")), "price_basis": require(cfg, "data.price_basis"),
+        "n_samples_used": n_samples_for(cfg, manifest.get("profile")), "price_basis": require(cfg, "data.price_basis"),
         "prediction_kind": manifest.get("kind", "model"), "leaky": bool(manifest.get("leaky", False)),
         "universe_variant": cfg_get(cfg, "universe.variant"), "n_as_of": int(len(n_sig)),
         "as_of_first": str(pd.Timestamp(n_sig.index.min()).date()), "as_of_last": str(pd.Timestamp(n_sig.index.max()).date()),

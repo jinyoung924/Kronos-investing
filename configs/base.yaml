@@ -105,15 +105,17 @@ infer:                         # D-7: inference profiles. One run_id follows one
 
 signal:                        # C_signal. D-3: signal rows = that day's backtest universe ∩ tickers present in the run_id's prediction file;
                                #           baseline features are attached to those rows only, so every strategy picks from the same set
-  n_samples: 20                # D-11: aggregate uses the first n_samples sample_ids per (as_of, ticker); fewer -> error. Same definition even if sample_count is larger
+  n_samples:                   # D-11 (per profile, spec priority): aggregate uses the first n_samples[profile] sample_ids per (as_of, ticker);
+    base: 20                   #      fewer -> error. Same definition even if the run's sample_count is larger (appendix C choice 2)
+    paper: 10
   mom_window: 20               # baseline features (mom20, vol20, rev5) from adjusted close up to as_of only
   vol_window: 20
   rev_window: 5
 
 strategies:                    # one strategy = one file. key = file name = registry name. profile = which predictions, schedule = weekly (H spacing) | daily
   equal_weight:    {profile: base, schedule: weekly}
-  momentum20_topk: {profile: base, schedule: weekly, k: null}                 # [사용자] K (previous placeholder: 20)
-  random_topk:     {profile: base, schedule: weekly, k: null}                 # [사용자] K (previous placeholder: 20)
+  momentum20_topk: {profile: base, schedule: weekly, k: 20}                   # [사용자 확정 필요] K. 잠정값 20 (옛 설정 값, Stage 3 보고서 질문 1)
+  random_topk:     {profile: base, schedule: weekly, k: 20}                   # [사용자 확정 필요] K. 잠정값 20 (옛 설정 값, Stage 3 보고서 질문 1)
   topk:            {profile: paper, schedule: daily, signal_col: exp_ret_mean,
                     k: null, n_drop: null, hold_min_days: 5}                   # [사용자] paper CSI 300: k 50, n 5 / CSI 800: k 200, n 10
   conf_weighted:   {profile: base, schedule: weekly, signal_col: exp_ret, threshold: null}   # [사용자] threshold (previous placeholder: 0.5)

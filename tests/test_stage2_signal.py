@@ -32,7 +32,7 @@ N_SAMPLES_TEST = 8          # synthetic fixture sample_count (conftest: infer.pr
 def syn(cfg, prices, constituents, tmp_path_factory):
     """Fake dummy + oracle predictions for 6 as_of dates on the synthetic data, plus A_prepared-style frames."""
     root = tmp_path_factory.mktemp("stage2")
-    c = cfg_override(cfg, {"period.start": "2024-07-01", "period.end": "2024-08-09", "signal.n_samples": N_SAMPLES_TEST})
+    c = cfg_override(cfg, {"period.start": "2024-07-01", "period.end": "2024-08-09", "signal.n_samples": {"base": N_SAMPLES_TEST, "paper": 10}})
     p = prices[prices["index"] != "benchmark"]
     runs = {}
     for kind in ("dummy", "oracle"):
@@ -270,7 +270,7 @@ def test_last_close_follows_price_basis(syn):
 
 
 def test_build_signals_rejects_sample_count_below_n_samples(syn):
-    c = cfg_override(syn["cfg"], {"signal.n_samples": N_SAMPLES_TEST + 1})
+    c = cfg_override(syn["cfg"], {"signal.n_samples": {"base": N_SAMPLES_TEST + 1}})
     H = int(profile_cfg(c)["pred_len"])
     preds, manifest = _load_preds(c, syn["root"], syn["runs"]["dummy"][0], H)
     with pytest.raises(ValueError, match="D-11"):
@@ -289,16 +289,23 @@ def test_real_fake_run_ids_signals_on_disk():
     prices = pd.read_parquet(paths.prepared_path("prices"), columns=["date", "ticker", "close"])
     adj = pd.read_parquet(paths.prepared_path("adj_factor"))
     ac = (to_wide(prices, "close") * to_wide(adj, "factor"))
-    for run_id in ("fake_dummy_base", "fake_oracle_base"):
+    cal = pd.DatetimeIndex(pd.read_parquet(paths.prepared_path("calendar"))["date"])
+    n_daily = int(((cal >= cfg["period"]["start"]) & (cal <= cfg["period"]["end"])).sum())
+    expect = {"base": {"H": 5, "N": 20, "n": 20, "n_as_of": (n_daily + 4) // 5}, "paper": {"H": 10, "N": 10, "n": 10, "n_as_of": n_daily}}
+    for run_id in ("fake_dummy_base", "fake_oracle_base", "fake_dummy_paper", "fake_oracle_paper"):
+        if not paths.signals_path(run_id).exists():
+            pytest.skip(f"{run_id} signals not generated")
         sig = validate_signals(pd.read_parquet(paths.signals_path(run_id)))
         meta = json.loads((paths.signals_dir(run_id) / "meta.json").read_text())
-        assert meta["H"] == 5 and meta["N"] == 20 and meta["n_samples_used"] == 20 and meta["profile"] == "base"
-        assert meta["n_as_of"] == 49 and meta["as_of_first"] == "2024-07-01" and meta["as_of_last"] == "2025-06-30"
+        e = expect[meta["profile"]]
+        assert meta["H"] == e["H"] and meta["N"] == e["N"] and meta["n_samples_used"] == e["n"]
+        assert meta["n_as_of"] == e["n_as_of"] and meta["as_of_first"] == "2024-07-01" and meta["as_of_last"] == "2025-06-30"
+        assert (sig["n_samples"] == e["n"]).all()
         for d, g in sig.groupby("as_of_date"):
             assert set(g["ticker"]) <= set(get_universe(uni, d))
         assert not sig.duplicated(["as_of_date", "ticker"]).any()
-        if run_id == "fake_oracle_base":
-            real = (ac.shift(-5) / ac - 1.0).stack().rename("r")
+        if run_id.startswith("fake_oracle"):
+            real = (ac.shift(-e["H"]) / ac - 1.0).stack().rename("r")
             real.index.names = ["as_of_date", "ticker"]
             m = sig.join(real, on=["as_of_date", "ticker"])
             assert np.abs(m["exp_ret"] - m["r"]).max() < 6 * EPS_ORACLE

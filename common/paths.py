@@ -86,6 +86,10 @@ class Paths:
     def weights_path(self, run_id: str, strategy: str) -> Path:
         return self.weights_dir(run_id) / f"{strategy}.parquet"
 
+    def weights_meta_path(self, run_id: str, strategy: str) -> Path:
+        """One meta file per strategy, next to its weights (several strategies share the run_id folder)."""
+        return self.weights_dir(run_id) / f"{strategy}.meta.json"
+
     # ---- E: backtest ------------------------------------------------------------------------------
     def backtest_dir(self, run_id: str, engine: str, strategy: str) -> Path:
         return self._dir("data.backtest_dir", "data/E_backtest") / run_id / engine / strategy
