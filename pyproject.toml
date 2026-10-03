@@ -17,10 +17,7 @@ infer = ["torch>=2.0", "huggingface_hub>=0.23", "einops", "safetensors", "tqdm"]
 dev = ["pytest>=7"]
 viz = ["quantstats"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["."]
-addopts = "-q"
+# pytest settings live in pytest.ini (single source)
 
 [tool.setuptools]
-packages = ["common", "infer", "backtest", "backtest.strategies", "data_prepare"]
+packages = ["common", "A_data_prepare", "B_model_infer", "C_signal", "D_strategy", "E_backtest", "F_evaluate", "G_report"]

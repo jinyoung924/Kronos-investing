@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from common.config import cfg_get
 from common.paths import Paths
 
 
@@ -69,7 +70,7 @@ def synthetic_dataset(cfg: dict, n_per_index: int = 30, seed: int = 0, **price_k
         # the last two tickers join at a later snapshot -> point-in-time membership is exercised
         late = tks[-2:]
         cons[idx] = synthetic_constituents(tks, {"2023-01-01": tks[:-2], "2025-01-01": tks})
-    bench_tks = list((cfg.get("benchmark", {}).get("index_tickers") or {}).values())
+    bench_tks = list((cfg_get(cfg, "data.index_tickers") or {}).values())
     bench = synthetic_prices(bench_tks, seed=seed + 99, calendar=cal, holiday_prob=0.0) if bench_tks else None
     return prices, cons, bench
 
@@ -87,6 +88,6 @@ def write_synthetic_dataset(cfg: dict, root: str | Path, n_per_index: int = 30, 
     if bench is not None:
         f = paths.price_file("benchmark")
         f.parent.mkdir(parents=True, exist_ok=True)
-        tick_market = {v: markets.get(k, "US") for k, v in cfg["benchmark"]["index_tickers"].items()}
+        tick_market = {v: markets.get(k) for k, v in (cfg_get(cfg, "data.index_tickers") or {}).items()}
         bench = bench.assign(market=bench["ticker"].map(tick_market))
         bench.to_parquet(f, index=False)

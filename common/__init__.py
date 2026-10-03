@@ -1,4 +1,4 @@
-"""Code shared by the inference side (infer/) and the backtest side (backtest/).
+"""Code shared by every stage package (A_data_prepare ... G_report).
 
-Neither side imports the other; both may import `common`.
+Stages never import each other; each may import `common`. Stages are linked only through files under data/.
 """

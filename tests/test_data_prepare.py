@@ -1,4 +1,4 @@
-"""data_prepare unit tests on fabricated KRX rows (no network)."""
+"""A_data_prepare unit tests on fabricated KRX rows (no network)."""
 from __future__ import annotations
 
 import json
@@ -7,14 +7,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from data_prepare.benchmark import index_prices
-from data_prepare.env import load_api_key
-from data_prepare.krx_client import KRXClient
-from data_prepare.transform import (compute_adj_factor, detect_reference_price_events, filter_securities,
+from A_data_prepare.benchmark import index_prices
+from A_data_prepare.env import load_api_key
+from A_data_prepare.krx_client import KRXClient
+from A_data_prepare.transform import (compute_adj_factor, detect_reference_price_events, filter_securities,
                                     is_common_stock, parse_number, rows_to_frame, short_code, stock_prices,
                                     to_project_format)
-from data_prepare.universe import build_constituents
-from data_prepare.validate import validate_dataset
+from A_data_prepare.universe import build_constituents
+from A_data_prepare.validate import validate_dataset
 
 
 def _row(d, code, name, o, h, l, c, chg, vol, val="1,000,000,000", mkt="KOSPI", sect=""):
@@ -172,7 +172,7 @@ def test_exchange_column_and_sect_filter():
 
 
 def test_etf_prices_drop_holiday_rows():
-    from data_prepare.benchmark import etf_prices
+    from A_data_prepare.benchmark import etf_prices
     raw = pd.DataFrame([
         {"date": "20240102", "ISU_CD": "226490", "ISU_NM": "KODEX 코스피", "TDD_OPNPRC": "10,000", "TDD_HGPRC": "10,100",
          "TDD_LWPRC": "9,900", "TDD_CLSPRC": "10,050", "ACC_TRDVOL": "1,000"},
@@ -184,7 +184,7 @@ def test_etf_prices_drop_holiday_rows():
 
 
 def test_sanity_adj_vs_fluc_rt_and_index_reconstruction():
-    from data_prepare.sanity import adj_vs_fluc_rt, reconstruct_index_return
+    from A_data_prepare.sanity import adj_vs_fluc_rt, reconstruct_index_return
     prices, ev = compute_adj_factor(filter_securities(stock_prices(rows_to_frame(_dataset(40))), True, ["스팩"])[0])
     prices = to_project_format(prices)
     chk = adj_vs_fluc_rt(prices, tol=1e-3)
@@ -202,7 +202,7 @@ def test_sanity_adj_vs_fluc_rt_and_index_reconstruction():
 
 
 def test_manifest_roundtrip(tmp_path):
-    from data_prepare.manifest import verify, write
+    from A_data_prepare.manifest import verify, write
     d = tmp_path / "data"
     (d / "raw" / "kospi").mkdir(parents=True)
     (d / "raw" / "kospi" / "prices.parquet").write_bytes(b"abc")
@@ -218,7 +218,7 @@ def test_manifest_roundtrip(tmp_path):
 
 def test_universe_variants_and_paths(cfg):
     from common.paths import Paths
-    from data_prepare.run import universe_variants
+    from A_data_prepare.run import universe_variants
     v = universe_variants(cfg)
     assert "base" in v and v["liq5"]["min_avg_trdval"] == 500000000 and v["base"]["min_avg_trdval"] == 1000000000
     assert v["clean"]["exclude_sect_patterns"] == ["SPAC", "관리종목", "투자주의환기"]

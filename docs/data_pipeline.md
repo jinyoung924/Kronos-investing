@@ -1,8 +1,12 @@
 # 데이터 파이프라인 (KRX Open API → 백테스트용 KOSPI·KOSDAQ 데이터셋)
 
-대상: KOSPI·KOSDAQ 전종목 일봉, 백테스트 구간 2024-07-01 ~ 2025-06-30 (`configs/base.yaml: run`).
-코드: [data_prepare/](../data_prepare/). 실행: `python -m data_prepare.run [단계 ...]`.
-거래소별로 파일을 나누고 같은 규칙으로 처리해, 풀링 실험과 거래소별 실험을 동일 조건에서 비교한다 (§9).
+대상: KOSPI·KOSDAQ 전종목 일봉, 백테스트 구간 2024-07-01 ~ 2025-06-30 (`configs/base.yaml`의 평가 기간; 현재 키 `run`, Stage 0 이후 `period`).
+Kronos-base는 2024-06까지의 데이터로 학습됐으므로 그 이후 1년만 out-of-sample 구간으로 쓴다.
+코드: [A_data_prepare/](../A_data_prepare/) (Stage 0에서 `data_prepare/`를 이름만 바꿨다. 로직 변경 없음). 실행: `python -m A_data_prepare.run [단계 ...]`.
+거래소별로 파일을 나누고 같은 규칙으로 처리해, 풀링 실험과 거래소별 실험을 동일 조건에서 비교할 수 있게 한다 (§9).
+
+이 문서는 **A 단계의 수집·정제·검증**(원본 JSON → `data/raw`, `data/universe`)을 정한다. 그 위에 백테스트가 읽는 `data/A_prepared/`를 만드는 일은
+[spec.md](spec.md) Stage 1이, 전체 설계와 불변 원칙은 [outline.md](outline.md)가 정한다. 여기 적힌 파일·경로는 바꾸지 않는다(`MANIFEST.json --verify`가 이 경로 기준).
 
 ## 0. 단계와 산출물
 
@@ -16,11 +20,11 @@ manifest   sha256 목록                                               -> data/M
 ```
 
 ```bash
-python -m data_prepare.run probe                    # 먼저. 미승인 서비스(401)를 수천 번 호출 전에 알아냄
-python -m data_prepare.run fetch --dry-run          # 필요한 호출 수
-python -m data_prepare.run                          # 전체 (probe fetch build benchmark sanity manifest)
-python -m data_prepare.run build benchmark sanity   # 캐시가 있으면 네트워크 없이 파생 단계만 재실행
-python -m data_prepare.manifest --verify            # 공유받은 data/가 같은 빈티지인지 확인
+python -m A_data_prepare.run probe                    # 먼저. 미승인 서비스(401)를 수천 번 호출 전에 알아냄
+python -m A_data_prepare.run fetch --dry-run          # 필요한 호출 수
+python -m A_data_prepare.run                          # 전체 (probe fetch build benchmark sanity manifest)
+python -m A_data_prepare.run build benchmark sanity   # 캐시가 있으면 네트워크 없이 파생 단계만 재실행
+python -m A_data_prepare.manifest --verify            # 공유받은 data/가 같은 빈티지인지 확인
 ```
 
 로그는 `logs/data_prepare.log`(타임스탬프 포함)에 남는다. 팀원 프로젝트(`performance-aware-latent-factors/00_data_prep`)의
@@ -36,7 +40,7 @@ python -m data_prepare.manifest --verify            # 공유받은 data/가 같�
 - `BUILD_METADATA.json`: 스냅샷, 설정 해시(`config_hash`), 코드 커밋, 빌드 시각, 거래소·변형별 검증 요약.
 - `data/MANIFEST.json`: `data/raw`, `data/universe`, `data/krx_raw/<snapshot>` 아래 모든 파일의 바이트 수와 sha256
   (3,664개, 998MB). 데이터 파일은 커밋하지 않고 매니페스트와 메타데이터 JSON만 커밋한다. 데이터를 복사받은 사람은
-  `python -m data_prepare.manifest --verify`로 바이트 단위 동일성을 확인한다.
+  `python -m A_data_prepare.manifest --verify`로 바이트 단위 동일성을 확인한다.
 
 ## 2. 데이터 전달 명세
 
@@ -46,11 +50,11 @@ python -m data_prepare.manifest --verify            # 공유받은 data/가 같�
 | 가격 파일 | `data/raw/{kospi,kosdaq}/prices.parquet`: 키 (`ticker`, `date`), 열 `open high low close volume adj_factor exchange name sect trdval mktcap list_shrs chg fluc_rt halted`. 가격은 **원가격(원)**, `raw × adj_factor` = 수정주가. 거래량은 주, 거래대금·시총은 원 |
 | 유니버스 파일 | `data/universe/constituents_{index}[_{variant}].parquet`: (`date`, `ticker`) 거래일별 스냅샷, 2024-06-03 ~ 2025-07-15 (271일). 백테스트는 `date` 이하 최신 스냅샷 사용 |
 | 벤치마크 | `data/raw/benchmark/prices.parquet`: `KOSPI`, `KOSDAQ` 지수 레벨(OHLC, `adj_factor=1`), ETF `226490`(KODEX 코스피), `229200`(KODEX 코스닥150). 각 680일 |
-| 기간 | 가격 2022-10-04 ~ 2025-07-15 (거래일 680, run.start 이전 428, run.end 이후 11). 백테스트 시그널일 2024-07-01 ~ 2025-06-30 |
+| 기간 | 가격 2022-10-04 ~ 2025-07-15 (거래일 680, 평가 시작 이전 428, 평가 종료 이후 11). 백테스트 시그널일 2024-07-01 ~ 2025-06-30 (Kronos 학습 종료 2024-06 이후 1년). 종료 후 11거래일은 라벨(H = 5)용 |
 | 캘린더 | KRX 거래일. 주식·지수·ETF 파일 동일(sanity 게이트) |
 | 종목 필터 | 보통주(코드 끝 0), 이름 `스팩` 제외, 코스닥 소속부 `SPAC` 제외; 유니버스는 추가로 이력 ≥ 400봉, 20일 평균 거래대금 ≥ 10억, 당일 무거래 제외 (§3) |
-| 수익률 정의 | 가격수익률(현금배당 미반영, §4-3). 체결은 시그널 다음 거래일 시가, 수익률은 조정 시가→시가 |
-| 상장폐지 | 사후 제거 없음. 정리매매 가격이 데이터에 남고, 가격 소실 시 마지막가에 청산 (§3) |
+| 수익률 정의 | 가격수익률(현금배당 미반영, §5-3). 시그널일 s의 비중은 다음 거래일 f의 시가에 체결, 라벨은 수정 시가 f → f+H (spec Stage 5). 엔진 NAV는 매일 종가로 평가 (spec Stage 4) |
+| 상장폐지 | 사후 제거 없음. 정리매매 가격이 데이터에 남는다. 가격이 사라진 뒤의 처리는 `backtest.delist_policy`(last_close 또는 zero)로 정한다 (§4, outline 결정 사항) |
 | 부속 진단 | `adjustment_events.csv`, `residual_big_moves.csv`, `validation.json`, `diag_universe_by_month.csv`, `diag_delisted_members.csv`, `coverage_{index}[_{variant}].csv` |
 
 CSV를 pandas로 읽을 때는 `dtype={"ticker": str}`을 줘야 `000480` 같은 코드의 앞자리 0이 보존된다(parquet은 문제없음).
@@ -96,12 +100,13 @@ CSV를 pandas로 읽을 때는 `dtype={"ticker": str}`을 줘야 `000480` 같은
 
 - `constituents_*.parquet`는 거래일마다 (date, ticker) 스냅샷. 나중에 상장된 종목은 그 전엔 보이지 않고, 나중에 폐지될
   종목은 폐지 전까지 정상 포함된다.
-- 상장폐지 후: 가격 행이 사라진다. 정리매매(7거래일, 가격제한 없음)의 −90%대 하락은 가격에 남아 반영된다. 엔진은 보유
-  종목의 가격이 사라지면 마지막 알려진 가격에 청산(그날 수익률 0)한다. 잔존가치 0 처리는 없다(과대평가 방향).
+- 상장폐지 후: 가격 행이 사라진다. 정리매매(7거래일, 가격제한 없음)의 −90%대 하락은 가격에 남아 반영된다. 보유 종목의
+  가격이 사라진 뒤의 처리는 엔진 설정 `backtest.delist_policy`가 정한다: `last_close`(마지막 가격에 청산, 과대평가 방향) 또는 `zero`(잔존가치 0).
   `diag_delisted_members.csv`: 유니버스 구성이었다가 폐지된 종목의 "마지막 구성일 → 마지막 가격" 수익률
   (KOSPI 4종목 평균 −0.6%, KOSDAQ 8종목 평균 −9.9%). 이 값이 크면 청산 규칙이 결과를 좌우한다는 뜻이다.
 
 유니버스 필터(`configs/base.yaml: universe`). 모두 **as_of 이전 데이터만** 쓰며 `tests/test_data_prepare.py::test_universe_filters_use_only_past`가 검증한다.
+이 키들은 Stage 0의 설정 재구성에서도 이름을 유지한다(spec Stage 0 작업 6).
 
 | 필터 | 규칙 | 이유 |
 |---|---|---|
@@ -113,8 +118,9 @@ CSV를 pandas로 읽을 때는 `dtype={"ticker": str}`을 줘야 `000480` 같은
 | 거래정지 제외 | as_of 당일 무거래면 제외 | 다음날 시가 체결 불가 |
 
 ### 유니버스 변형(포크)
-팀원 프로젝트의 full/exmicro 포크처럼, 한 번의 build가 `universe.variants`의 모든 변형을 만든다. 백테스트는
-`universe.variant`(기본 `base`)로 고른다: `python scripts/run_backtest.py ... --set universe.variant=liq5`.
+팀원 프로젝트의 full/exmicro 포크처럼, 한 번의 build가 `universe.variants`의 모든 변형을 만든다. 어느 변형을 본 표본으로 쓸지는
+`universe.variant`(기본 `base`)로 정하고, Stage 1의 `build_universe.py`가 그 변형을 읽어 두 거래소를 합친 `data/A_prepared/universe`를 만든다.
+변형을 바꿔 돌린 결과는 run_id를 달리해 저장하고 `trials.csv`에 기록한다(spec Stage 5).
 
 | 변형 | 오버라이드 | 용도 |
 |---|---|---|
@@ -144,15 +150,16 @@ CSV를 pandas로 읽을 때는 `dtype={"ticker": str}`을 줘야 `000480` 같은
 
 ### 5-4. 무거래일 / 거래정지
 - 시가·고가·저가 0, 거래량 0인 행(전체 행의 2.1%)은 거래정지 또는 무체결. `open/high/low = NaN, halted = True`, 종가(기준가)만 남긴다.
-- 엔진은 시가가 없으면 체결 불가로 보고 목표비중을 현금으로 돌린다. 보유 중 정지되면 `data.ffill_limit`(5)일까지 직전
-  시가로 평가하고 그 뒤 마지막 가격에 청산한다. 유니버스 필터가 as_of 당일 정지 종목을 제외하므로 시그널 후 정지된
-  경우만 엔진이 처리한다. 추론 입력 400봉에 NaN이 있으면 그 종목은 건너뛴다(과거 기준이므로 lookahead 아님).
+- `halted` 컬럼이 Stage 1의 halts 표(date, ticker, is_halted)가 된다. 엔진 처리는 spec Stage 4·7을 따른다: v1은 체결일에
+  시가가 없는 종목을 거래하지 않고 기존 비중을 유지하며 trades에 표시한다. v2는 halt 제약을 켜면 주문을 거부(`rejected_halt`)하고
+  보유 가치는 직전 가격으로 동결한다. 유니버스 필터가 as_of 당일 정지 종목을 제외하므로 시그널 후 정지된 경우만 엔진이 처리한다.
+  추론 입력 400봉에 NaN이 있으면 그 종목은 건너뛴다(과거 기준이므로 lookahead 아님, `build_batch` skipped 사유 `nan_in_window`).
 
 ### 5-5. 검증 기준(잔여 급등락)
 - 조정 후 단순수익률 ±35% 초과 행을 `residual_big_moves.csv`에 남긴다. 상하한가(±30%) 안의 정상 급등락은 안 걸리고
   정리매매·누락 이벤트·데이터 오류만 걸린다. (로그수익률로 잡으면 하한가 −30%가 −0.357로 걸려 오탐. 첫 실행 122건 중 94건.)
 
-## 6. Sanity 게이트 (`python -m data_prepare.run sanity`, `data/raw/sanity_report.json`)
+## 6. Sanity 게이트 (`python -m A_data_prepare.run sanity`, `data/raw/sanity_report.json`)
 
 하드 게이트는 `AssertionError`로 중단, 소프트는 경고. 2026-09-28 스냅샷 결과:
 
@@ -166,31 +173,33 @@ CSV를 pandas로 읽을 때는 `dtype={"ticker": str}`을 줘야 `000480` 같은
 | 6 | ETF vs 지수 일수익률 상관 ≥ 0.9 | 소프트 | 226490/KOSPI 0.983, 229200/KOSDAQ 0.945 |
 | 7 | 진단: 월별 상장·구성·정지·폐지 수(`diag_universe_by_month.csv`), 폐지 구성종목 손실(`diag_delisted_members.csv`), 잔여 급등락 | 기록만 | 위 §2·§4 |
 
-build 단계의 `validation.json`은 파일 단위 하드 검사(중복, 계수 부호, run.start 이전 거래일 ≥ 400, run.end 이후 ≥ H+1)를 따로 한다.
+build 단계의 `validation.json`은 파일 단위 하드 검사(중복, 계수 부호, 평가 시작 이전 거래일 ≥ 400, 평가 종료 이후 ≥ H+1)를 따로 한다.
 
 ## 7. Lookahead 관련 정리 (데이터 계층)
 - 유니버스·유동성·이력·정지 필터는 as_of 이전 행만 사용 (단위 테스트).
-- 조정계수는 비율만 사용하고 추론 윈도우는 as_of 계수로 rebase (`infer/build_batch.py`, `tests/test_no_lookahead.py`).
-- 시그널은 종가, 체결은 다음 거래일 시가. 엔진이 `as_of < fill_date`를 assert.
-- 라벨(실현수익률)은 전략에 전달되지 않는 별도 프레임 (`backtest/signals.py`).
+- 조정계수는 비율만 사용하고 추론 윈도우는 as_of 계수로 rebase (`B_model_infer/build_batch.py`, `tests/test_no_lookahead.py`).
+  여기 저장된 `adj_factor`는 마지막 행이 1인 후진 누적이다. Stage 1은 이를 첫날이 1인 전진 누적 F로 바꿔 `data/A_prepared/adj_factor`에 둔다. 두 날짜 사이 비율은 같다(spec Stage 1).
+- 시그널은 종가, 체결은 다음 거래일 시가. 엔진이 `signal_date < fill_date`를 assert (`common/lookahead.py`).
+- 라벨(실현수익률)은 전략에 전달되지 않으며 `F_evaluate/labels.py`에서만 계산한다 (outline 불변 원칙 3).
 
 ## 8. 알려진 한계 (해석 시 유의)
 1. 배당 미반영(§5-3). 2. 상장폐지 잔존가치 0 처리 없음(§4). 3. 신규상장은 이력 필터로 장기간 제외(§4).
 4. 거래정지 중 평가가 직전가 기준(§5-4). 5. 관리종목·투자주의환기 정보는 KOSDAQ에만 있어 base에서는 필터하지 않는다(`clean` 변형 참고).
-6. 코스피·코스닥 지수는 가격지수라 배당 차이가 전략과 같은 방향으로 빠져 있다. 7. 증권거래세 연도별 변화(2024 0.18% → 2025 0.15%)는 미반영.
+6. 코스피·코스닥 지수는 가격지수라 배당 차이가 전략과 같은 방향으로 빠져 있다. 7. 증권거래세 연도별 변화(2024 0.18% → 2025 0.15%)는 데이터가 아니라
+   비용 모델(`costs.sell_tax_table`, 시장·시행일별)에서 반영한다. 세율 값은 사용자가 출처를 확인해 넣는다(spec 공통 규칙 10).
 
 ## 9. KOSPI vs KOSDAQ 비교 실험을 위한 공정성 설계
 
 | 요소 | 설계 | 이유 |
 |---|---|---|
-| 파일 구조 | 거래소별 파일 + `exchange` 컬럼. 백테스트는 합쳐 읽고 시그널에 `index`(kospi/kosdaq)가 붙음 | 풀링·개별 실험을 한 데이터셋으로 |
+| 파일 구조 | 거래소별 파일 + `exchange` 컬럼. Stage 1이 합쳐 `market` 컬럼으로 `data/A_prepared/prices`에 둔다 | 풀링·개별 실험을 한 데이터셋으로 |
 | 필터 규칙 | `universe` 설정 하나를 두 거래소에 동일 적용 | 규칙 차이가 성과 차이로 둔갑하지 않게 |
 | 유동성 절대기준 | 같은 10억(같은 체결 가능성). 통과 비율을 맞추려면 `min_avg_trdval: {kospi: 1e9, kosdaq: 5e8}` | 두 정의 중 선택을 설정으로 명시 |
 | 추론 | 한 `run_id`가 두 거래소를 모두 포함. 같은 모델·날짜·샘플 수 | 예측 조건 동일 |
-| 백테스트 분리 | `scripts/run_backtest.py --indices kospi` / `--indices kosdaq` → `results/{run_id}/{strategy}@kospi/` | 같은 예측 파일로 거래소별 성과 |
-| 벤치마크 | 거래소별 알파·IR 기준은 그 거래소 유니버스의 EqualWeight(자동). `index_buy_hold`는 그 거래소 지수만 보유 | 유니버스 편향 없는 상대 성과 |
-| 예측 품질 | `prediction_metrics.json: by_index` — 거래소 **안에서** 계산한 Rank IC/ICIR/분위 스프레드/방향 적중률 | 풀링 IC는 거래소 간 수준 차이가 섞임 |
-| 비용 | 두 거래소 모두 KR 비용(매도세 0.18% + 수수료 0.015% + 슬리피지 5bp). 실제 거래세는 2024년 양쪽 0.18%, 2025년 양쪽 0.15%로 동일 | 비용 차이 없음 |
+| 거래소별 분석 | 데이터는 `market` 컬럼으로 언제든 나눌 수 있다. 새 설계(outline·spec)는 두 거래소를 풀링한 run_id 하나를 기본으로 하며, 거래소별 실행·지표 분해를 넣을지는 결정 사항이다 | 같은 예측 파일로 거래소별 성과를 볼 수 있게 데이터 쪽은 준비해 둔다 |
+| 벤치마크 | 지수 레벨(KOSPI, KOSDAQ)과 ETF(226490, 229200)를 모두 제공한다. 무엇을 벤치마크로 쓸지는 spec Stage 1·5의 선행 결정 | 유니버스 편향 없는 상대 성과 |
+| 예측 품질 | 풀링 IC는 거래소 간 수준 차이가 섞이므로, 거래소별 IC를 보려면 거래소 **안에서** 횡단면을 잡아야 한다 (F_evaluate에 분해를 넣을 때 참고) | 비교의 공정성 |
+| 비용 | 두 거래소에 같은 비용 모델(수수료 0.015%, 슬리피지 5bp, 거래세는 `costs.sell_tax_table`). 거래세는 2024년 양쪽 0.18%, 2025년 양쪽 0.15%로 동일(사용자 확인) | 비용 차이 없음 |
 | 캘린더 | 동일(KRX, sanity 게이트 3) | 리밸런싱일 일치 |
 | 이전상장 | 두 파일에 서로 다른 날짜로 존재, 같은 날 중복 0 | 중복 계상 방지 |
 

@@ -1,0 +1,8 @@
+# Pinned to the versions the Stage 0 test run used (macOS, Python 3.12). Ranges live in pyproject.toml.
+numpy==1.26.4
+pandas==2.2.2
+pyarrow==14.0.2
+PyYAML==6.0.1
+scipy==1.13.1
+matplotlib==3.10.0
+pytest==7.4.4

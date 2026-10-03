@@ -3,19 +3,23 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 .venv/
-# datasets are not committed; their metadata / manifest are
+# datasets are not committed; their metadata / manifest are (docs/data_pipeline.md)
 data/raw/*
 !data/raw/.gitkeep
 !data/raw/BUILD_METADATA.json
 !data/raw/sanity_report.json
 data/universe/*
 !data/universe/.gitkeep
-data/predictions/*
-!data/predictions/.gitkeep
-results/*
-!results/.gitkeep
-.DS_Store
-.env
 # raw JSON per endpoint (the vintage); PULL_METADATA.json / probe files stay trackable
 data/krx_raw/*/*/
+# stage outputs (common/paths.py); each run folder carries its own manifest.json / meta.json
+data/A_prepared/
+data/B_predictions/
+data/C_signals/
+data/D_weights/
+data/E_backtest/
+data/F_metrics/
+reports/
 logs/
+.DS_Store
+.env

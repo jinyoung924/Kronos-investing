@@ -1,4 +1,4 @@
-"""Price data loading and lookahead-safe return construction.
+"""Price data loading helpers for the collected (data/raw) format.
 
 Long price format (one row per date x ticker):
     date, ticker, open, high, low, close, volume, adj_factor, market, index
@@ -36,15 +36,14 @@ def load_prices(cfg: dict, root: str | Path = ".", indices: Iterable[str] | None
             raise FileNotFoundError(f"missing price file {f}; place raw OHLCV + adj_factor parquet there")
         df = pd.read_parquet(f)
         df["index"] = idx
-        df["market"] = markets.get(idx, cfg_get(cfg, "backtest.default_market", "US"))
+        if idx in markets:
+            df["market"] = markets[idx]
         frames.append(df)
     if include_benchmark:
         f = paths.price_file("benchmark")
         if f.exists():
             df = pd.read_parquet(f)
             df["index"] = "benchmark"
-            if "market" not in df.columns:
-                df["market"] = cfg_get(cfg, "backtest.default_market", "US")
             frames.append(df)
     if not frames:
         raise FileNotFoundError("no price files found")
@@ -100,13 +99,3 @@ def adjusted_wide(prices: pd.DataFrame, col: str, ffill_limit: int | None = None
     raw = to_wide(prices, col)
     adj = to_wide(prices, "adj_factor").reindex_like(raw)
     return ffill_wide(raw * adj, ffill_limit)
-
-
-def forward_returns(adj_wide: pd.DataFrame, horizon: int) -> pd.DataFrame:
-    """R[t] = P[t+horizon] / P[t] - 1 on the row calendar (LABEL: uses future rows)."""
-    return adj_wide.shift(-horizon) / adj_wide - 1.0
-
-
-def open_to_open_returns(adj_open: pd.DataFrame) -> pd.DataFrame:
-    """Row t holds the return earned by a position opened at open[t] and marked at open[t+1]."""
-    return forward_returns(adj_open, 1)

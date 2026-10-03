@@ -1,36 +1,66 @@
-# Single source of truth for every knob in the project. No hard-coded values elsewhere.
+# Single source of truth for every knob in the project (docs/spec.md "공통 설정"). No hard-coded values elsewhere.
+# `[사용자]` = decided or verified by the user; the agent leaves it null. Comments name where a carried-over value came from.
+# Keys read by the collection pipeline (A_data_prepare: krx.*, universe.* filters/variants, data.raw_dir, data.universe_dir,
+# data.logs_dir, data.price_file) keep their original names so `python -m A_data_prepare.run build` reproduces the same files.
 
-run:
-  start: "2024-07-01"          # first as_of (signal) date
-  end: "2025-06-30"            # last as_of date
-  step: 5                      # rebalance every H trading days (must equal model.horizon for weekly)
+project:
+  run_ids:                     # real prediction run_id per profile. Fake predictions: fake_dummy_{profile}, fake_oracle_{profile}
+    base: kronos_base_v1
+    paper: kronos_paper_v1
+  seed: 42                     # every random draw (dummy backend, random strategy, bootstrap) derives from this
+
+period:                        # evaluation window (was run.start / run.end in the previous config)
+  start: "2024-07-01"          # fixed: Kronos-base training data ends 2024-06 -> the following year is out-of-sample
+  end: "2025-06-30"            # prices run to 2025-07-15 so labels (H = 5) are covered
+
+data:
+  markets: [KOSPI, KOSDAQ]     # `market` values in prepared prices; sell_tax_table keys. Collection itself is driven by krx.markets
+  price_basis: null            # [사용자] raw | adjusted. Must equal the Kronos input basis. outline.md: build_batch rebases to as_of
+                               #          adj_factor so predictions are on the as_of RAW scale -> expected answer "raw" (Stage 2 decision)
+  index_tickers:               # benchmark index levels held in data/raw/benchmark/prices.parquet (was benchmark.index_tickers)
+    kospi: "KOSPI"
+    kosdaq: "KOSDAQ"
+  # --- fixed collection paths (docs/data_pipeline.md; MANIFEST.json is keyed on them) ---
+  raw_dir: data/raw
+  universe_dir: data/universe
+  logs_dir: logs
+  price_file: prices.parquet
+  # --- stage outputs (common/paths.py) ---
+  prepared_dir: data/A_prepared
+  predictions_dir: data/B_predictions
+  signals_dir: data/C_signals
+  weights_dir: data/D_weights
+  backtest_dir: data/E_backtest
+  metrics_dir: data/F_metrics
+  reports_dir: reports
+  ffill_limit: 5               # forward-fill price gaps (holidays) up to this many rows; longer gaps = missing
 
 universe:
-  indices: [kospi, kosdaq]     # one index per exchange, each point-in-time; the price files carry an `exchange` column
-  markets:                     # index -> cost market
-    kospi: KR
-    kosdaq: KR
-  max_stale_days: 5            # a ticker whose last bar is older than this (calendar days) at as_of is skipped
-  # --- investability filters applied when building constituents (data_prepare, trailing data only)
+  indices: [kospi, kosdaq]     # one index key per exchange; data/raw/{index}/prices.parquet, data/universe/constituents_{index}
+  markets:                     # index key -> market label used by common.data.load_prices
+    kospi: KOSPI
+    kosdaq: KOSDAQ
+  variant: base                # [사용자] which constituents variant the backtest reads: base | liq5 | clean (spec: universe.name)
+  top_n_mktcap: null           # [사용자] integer -> keep only the N largest by as_of market cap (paper CSI 300 analogue: KOSPI 200); null = all
+  max_stale_days: 5            # a ticker whose last bar is older than this (calendar days) at as_of is skipped by B_model_infer
+  # --- investability filters applied when building constituents (A_data_prepare, trailing data only; do not rename) ---
   common_stock_only: true      # 6-digit code ending in 0 (drop 우선주 etc.)
   exclude_name_patterns: ["스팩"]   # regex on ISU_NM (SPACs, both exchanges)
   exclude_sect_patterns: ["SPAC"]   # regex on KOSDAQ 소속부(SECT_TP_NM); add "관리종목", "투자주의환기" to drop those (KOSDAQ only!)
-  min_history_rows: 400        # bars available before as_of (= model.lookback, so EW and Kronos share a universe)
+  min_history_rows: 400        # bars available before as_of (= base profile lookback, so EW and Kronos share a universe)
   liquidity_window: 20
   min_avg_trdval: 1000000000   # KRW (10억원), trailing mean daily trading value; 0 disables.
-                               # Same absolute rule on both exchanges (fair execution assumption); override per index with
-                               # a mapping, e.g. {kospi: 1000000000, kosdaq: 500000000}
+                               # Same absolute rule on both exchanges; override per index with a mapping, e.g. {kospi: 1e9, kosdaq: 5e8}
   exclude_halted: true         # no trade on the as_of date -> not a member that day
   universe_start_buffer_days: 30
-  variant: base                # which constituents variant the backtest reads (constituents_{index}[_{variant}].parquet)
-  variants:                    # universe forks built by data_prepare with overrides on the keys above ("base" = no override)
+  variants:                    # universe forks built by A_data_prepare with overrides on the keys above ("base" = no override)
     base: {}
     liq5: {min_avg_trdval: 500000000}                    # looser liquidity (5억) -> larger, smaller-cap universe
     clean: {exclude_sect_patterns: ["SPAC", "관리종목", "투자주의환기"]}   # KOSDAQ-only labels: asymmetric, sensitivity only
 
-krx:                           # data_prepare (KRX Open API)
-  fetch_start: "2022-10-01"    # ~420 trading days before run.start (lookback 400 + buffer)
-  fetch_end: "2025-07-15"      # run.end + horizon trading days (+ buffer) for realized labels
+krx:                           # A_data_prepare (KRX Open API). Do not rename.
+  fetch_start: "2022-10-01"    # ~420 trading days before period.start (lookback 400 + buffer)
+  fetch_end: "2025-07-15"      # period.end + horizon trading days (+ buffer) for realized labels
   markets: [KOSPI, KOSDAQ]     # KOSPI -> stk_bydd_trd -> index "kospi"; KOSDAQ -> ksq_bydd_trd -> index "kosdaq"
   index_series:                # benchmark index levels: index key -> {api, name, ticker}
     kospi:  {api: kospi_dd_trd,  name: "코스피", ticker: "KOSPI"}
@@ -40,61 +70,78 @@ krx:                           # data_prepare (KRX Open API)
   cache_dir: data/krx_raw       # raw JSON lives under {cache_dir}/{snapshot}/{api_id}/{YYYYMMDD}.json
   snapshot: "2026-09-28"        # vintage: the day the raw pulls ran. Frozen afterwards; a new pull = a new snapshot
 
-data:
-  raw_dir: data/raw
-  universe_dir: data/universe
-  predictions_dir: data/predictions
-  results_dir: results
-  logs_dir: logs
-  price_file: prices.parquet
-  ffill_limit: 5               # forward-fill gaps (holidays) in prices up to this many rows; longer gaps = missing
-
-model:
+model:                         # Kronos model identity and GPU runtime (B_model_infer). Per-profile sampling knobs live in infer.profiles
   name: NeoQuasar/Kronos-base
   tokenizer: NeoQuasar/Kronos-Tokenizer-base
   revision: main               # HF revision; the resolved commit sha is written to manifest.json
   kronos_repo: ./Kronos        # local clone of https://github.com/shiyu-coder/Kronos (provides `model` package)
-  lookback: 400
-  horizon: 5                   # pred_len = H
-  temperature: 1.0
-  top_p: 0.9
   top_k: 0
-  sample_count: 20
   max_context: 512
   batch_size: 256              # sequences per forward pass (tickers x samples); tune to GPU memory
   device: cuda:0
-  seed: 0
 
-backtest:
-  initial_nav: 1.0
-  costs:
-    KR: {commission: 0.00015, sell_tax: 0.0018, slippage: 0.0005}
-    US: {commission: 0.0,     sell_tax: 0.0,    slippage: 0.0005}
-  default_market: US           # used for tickers with unknown market (e.g. benchmark ETFs)
+infer:                         # inference profiles. One run_id follows one profile; manifest.profile records it
+  default_profile: base
+  profiles:
+    base:                      # this project's default (weekly rebalancing). Values carried over from the previous model.* / run.step
+      lookback: 400
+      pred_len: 5              # H
+      step: 5                  # as_of spacing in trading days. 5 = weekly
+      temperature: 1.0
+      top_p: 0.9
+      sample_count: 20
+    paper:                     # original paper's investment simulation (§4.2.3, appendix D.3.3, table 6; spec appendix C)
+      lookback: 90
+      pred_len: 10
+      step: 1                  # ranks refreshed every trading day
+      temperature: 0.6
+      top_p: 0.9
+      sample_count: 10         # paper table 6: N = 10. The official repo's finetune/config.py uses 5
 
-benchmark:
-  strategy: equal_weight       # strategy used for alpha/beta/IR/hit-ratio and regime classification
-  index_tickers:               # held by the index_buy_hold strategy (must exist in data/raw/benchmark)
-    kospi: "KOSPI"
-    kosdaq: "KOSDAQ"
-
-features:
+signal:                        # C_signal baseline features (was features.*)
   mom_window: 20
   vol_window: 20
   rev_window: 5
 
-strategies:
-  topk:          {k: 20}
-  conf_weighted: {threshold: 0.5, max_weight: 0.10, min_exp_ret: 0.0}
-  vol_target:    {k: 20, target_range: null}
-  equal_weight:  {}
-  momentum20:    {k: 20}
-  random:        {k: 20, seed: 42}
-  index_buy_hold: {}
+strategies:                    # one strategy = one file. key = file name = registry name. profile = which predictions, schedule = weekly (H spacing) | daily
+  equal_weight:    {profile: base, schedule: weekly}
+  momentum20_topk: {profile: base, schedule: weekly, k: null}                 # [사용자] K (previous placeholder: 20)
+  random_topk:     {profile: base, schedule: weekly, k: null}                 # [사용자] K (previous placeholder: 20)
+  topk:            {profile: paper, schedule: daily, signal_col: exp_ret_mean,
+                    k: null, n_drop: null, hold_min_days: 5}                   # [사용자] paper CSI 300: k 50, n 5 / CSI 800: k 200, n 10
+  conf_weighted:   {profile: base, schedule: weekly, signal_col: exp_ret, threshold: null}   # [사용자] threshold (previous placeholder: 0.5)
+  vol_target:      {profile: base, schedule: weekly, signal_col: exp_ret, k: null}           # [사용자] K (previous placeholder: 20)
 
-metrics:
-  periods_per_year: 252
-  risk_free: 0.0
-  bootstrap: {n: 1000, block: 10, seed: 0}
-  n_trials: 8                  # number of strategy/parameter combinations tried (Deflated Sharpe)
-  n_quantiles: 5
+costs:
+  scenario: kr                 # kr (Korean costs below) | paper (original paper's costs, sensitivity comparison)
+  commission_buy: 0.00015      # previous config backtest.costs.KR.commission
+  commission_sell: 0.00015
+  slippage_bps: 5              # previous config backtest.costs.KR.slippage 0.0005
+  sell_tax_table: []           # [사용자] [{market, start, rate}, ...]. Previous unverified value: 0.0018 flat.
+                               #          data_pipeline.md §8: 2024 0.18%, 2025 0.15% (both exchanges) -> confirm the source first
+  paper: {buy: 0.0010, sell: 0.0015}   # official repo qlib setting open_cost 0.1%, close_cost 0.15% (paper text: "0.15% per trade"). No tax, no slippage
+
+backtest:
+  init_cash: null              # [사용자] initial capital (KRW); drives the size of the integer-share effect
+  delist_policy: null          # [사용자] last_close | zero
+  v2:
+    constraints:               # switched on one at a time in the shortfall decomposition
+      costs: true
+      integer_shares: true
+      cash: true
+      price_limit: true
+      halt: true
+      liquidity: true
+    price_limit_pct: null      # [사용자] daily price limit
+    tick_table: []             # [사용자] [{min_price, tick}, ...]
+    max_participation: null    # [사용자] order value / same-day traded value cap
+
+evaluate:
+  quantiles: 5
+  bootstrap: {n: 2000, block: 20}
+  regimes: {split: half_year}
+
+report:
+  compare_run_ids: [kronos_base_v1, kronos_paper_v1]   # run_ids compare.md gathers into one table
+  shortfall_strategy: topk
+  shortfall_order: [costs, integer_shares, cash, price_limit, halt, liquidity]

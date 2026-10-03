@@ -40,3 +40,17 @@ def assert_signal_before_fill(as_of_dates, fill_dates) -> None:
     if bad.any():
         i = int(bad.argmax())
         raise LookaheadError(f"signal date {a[i].date()} is not before fill date {f[i].date()}")
+
+
+# ---- names used by docs/spec.md (aliases; the implementations above are the originals) ----------
+assert_no_future_rows = assert_no_future
+
+
+def assert_fill_after_signal(trades: pd.DataFrame, signal_col: str = "signal_date", fill_col: str = "fill_date") -> None:
+    """Every trade row must have signal_date < fill_date (spec name for assert_signal_before_fill)."""
+    for c in (signal_col, fill_col):
+        if c not in trades.columns:
+            raise ValueError(f"trades frame needs column '{c}'")
+    if len(trades) == 0:
+        return
+    assert_signal_before_fill(pd.to_datetime(trades[signal_col]), pd.to_datetime(trades[fill_col]))
