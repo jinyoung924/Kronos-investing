@@ -80,3 +80,31 @@
 | 주 벤치마크 확정 (D-6 잠정안), 거래소별 분석 포함 여부 | 5 |
 | strategies.topk.k, strategies.vol\_target.k, strategies.conf\_weighted.threshold | 6 |
 | backtest.init\_cash, v2.price\_limit\_pct, v2.tick\_table, v2.max\_participation | 7 |
+
+## Stage 1 보고서 후속 (2026-10-03)
+
+### D-10. 오라클 예측 구성 (Stage 2)
+
+- **가격 스케일**: as\_of 원주가 스케일로 만든다. horizon\_step h의 가격 = 원주가(t\_h) × F(t\_h) / F(as\_of), t\_h는 as\_of 이후 h번째 거래일이다. 미래 분할이 가짜 급락으로 나타나지 않게 하기 위해서다. 오라클은 일부러 미래를 쓰는 테스트 장치라 미래 F 사용을 허용하며, 오라클 밖의 코드에서는 금지다.
+- **미래 정지일**: open/high/low가 NaN이면 그날 종가(기준가)로 채우고 거래량은 0으로 둔다.
+- **미래 상장폐지**: 가격 행이 없는 날은 마지막 유효 종가를 이어 붙이고 거래량은 0으로 둔다. 해당 (as\_of, ticker) 수를 meta.json에 기록한다.
+- **노이즈**: 곱셈 노이즈 exp(N(0, ε)). ε는 테스트 상수, seed는 project.seed.
+- **종목 자격**: D-3대로 build\_batch와 같은 자격 판정을 쓴다.
+- **기대치**: 오라클 exp\_ret는 as\_of 종가 → 5거래일 뒤 종가 기준이고, F\_evaluate 라벨은 다음날 시가 → 그 5거래일 뒤 시가 기준이다. Stage 2 테스트는 종가 기준 실현 수익률과 비교한다. Stage 5의 오라클 IC는 1보다 낮게 나오는 것이 정상이며, 이를 1에 맞추려고 라벨이나 오라클을 고치지 않는다.
+
+### D-11. 시그널 샘플 수 (Stage 2)
+
+- `signal.n_samples: 20`을 추가한다.
+- C\_signal/aggregate는 (as\_of, ticker)마다 sample\_id 오름차순으로 앞의 n\_samples개만 쓴다. 샘플이 n\_samples보다 적으면 오류를 낸다.
+- 예측의 sample\_count가 더 커도(부록 C 선택 2) 시그널은 같은 정의를 유지한다.
+
+### D-12. Stage 2 범위
+
+- spec의 Stage 2 범위만 구현한다. 추론 프로필은 default 프로필(base)만 쓰고, paper 프로필 실행이나 spec에 없는 추론 옵션은 추가하지 않는다. 필요하다고 판단되면 보고서의 "질문"에 남긴다.
+- `universe.top_n_mktcap`은 null로 유지한다.
+
+### D-13. Stage 1 확인 결과
+
+- 시가 0이면서 소량 체결된 2행을 정지로 분류한 것: 승인
+- 설명되지 않은 급변 58행을 전부 정리매매로 판단한 것과 정지 해제일 제외 규칙: 승인, 현행 유지
+- 벤치마크에 market을 두지 않은 것: 승인. Stage 5에서 ETF에 비용을 붙여야 할 때 추가한다.

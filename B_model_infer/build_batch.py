@@ -3,7 +3,12 @@
 All windows end at (or, for a market holiday, shortly before) as_of and are cut with
 `slice_as_of`, which raises if a future row is present. Prices in the window are rebased with
 adj_factor / adj_factor[last row] so that splits inside the lookback do not create jumps while
-the last close stays equal to the raw close at as_of (predictions are on the raw scale).
+the last close stays equal to the raw close at as_of (predictions are on the raw scale, D-1).
+
+Eligibility (D-3): `qualify_window` is the single place that decides whether a ticker gets a
+prediction on an as_of date (enough history, not stale, no NaN bar in the window, positive prices).
+build_batch and the oracle fake predictions both go through it, so every run_id, real or fake, drops the
+same tickers for the same reasons.
 """
 from __future__ import annotations
 
@@ -15,6 +20,7 @@ import pandas as pd
 from common.lookahead import LookaheadError, assert_no_future, slice_as_of
 
 INPUT_COLS = ["open", "high", "low", "close", "volume", "amount"]
+WINDOW_COLS = ["open", "high", "low", "close", "volume"]
 
 
 @dataclass
@@ -37,7 +43,10 @@ def future_timestamps(as_of, horizon: int) -> pd.Series:
     return pd.Series(pd.bdate_range(start, periods=horizon))
 
 
-def _window(hist: pd.DataFrame, lookback: int, as_of: pd.Timestamp, max_stale_days: int) -> tuple[pd.DataFrame | None, str]:
+def qualify_window(hist: pd.DataFrame, lookback: int, as_of: pd.Timestamp, max_stale_days: int) -> tuple[pd.DataFrame | None, str]:
+    """Return (window, "") when `hist` (one ticker, rows dated <= as_of, sorted) can feed the model, else (None, reason).
+
+    reasons: insufficient_history(n<lookback) | stale(last=YYYY-MM-DD) | nan_in_window | nonpositive_price"""
     if len(hist) < lookback:
         return None, f"insufficient_history({len(hist)}<{lookback})"
     w = hist.iloc[-lookback:]
@@ -46,11 +55,28 @@ def _window(hist: pd.DataFrame, lookback: int, as_of: pd.Timestamp, max_stale_da
         raise LookaheadError(f"window ends after as_of: {last_date} > {as_of}")
     if (as_of - last_date).days > max_stale_days:
         return None, f"stale(last={last_date.date()})"
-    if w[["open", "high", "low", "close", "volume"]].isna().any().any():
+    if w[WINDOW_COLS].isna().any().any():
         return None, "nan_in_window"
     if (w[["open", "high", "low", "close"]] <= 0).any().any():
         return None, "nonpositive_price"
     return w, ""
+
+
+def eligible_tickers(prices: pd.DataFrame, tickers, as_of, lookback: int, max_stale_days: int = 5) -> tuple[list[str], dict[str, str]]:
+    """(eligible tickers in input order, {ticker: reason} for the rest) using exactly build_batch's rule."""
+    as_of = pd.Timestamp(as_of).normalize()
+    tickers = [str(t) for t in tickers]
+    hist_all = slice_as_of(prices[prices["ticker"].isin(tickers)], as_of, "date")
+    groups = {t: g.sort_values("date") for t, g in hist_all.groupby("ticker", sort=False)}
+    ok, skipped = [], {}
+    for t in tickers:
+        hist = groups.get(t)
+        if hist is None:
+            skipped[t] = "no_data"
+            continue
+        w, reason = qualify_window(hist, lookback, as_of, max_stale_days)
+        (ok.append(t) if w is not None else skipped.__setitem__(t, reason))
+    return ok, skipped
 
 
 def build_batch(prices: pd.DataFrame, tickers, as_of, lookback: int, horizon: int,
@@ -70,7 +96,7 @@ def build_batch(prices: pd.DataFrame, tickers, as_of, lookback: int, horizon: in
         if hist is None:
             out.skipped[t] = "no_data"
             continue
-        w, reason = _window(hist, lookback, as_of, max_stale_days)
+        w, reason = qualify_window(hist, lookback, as_of, max_stale_days)
         if w is None:
             out.skipped[t] = reason
             continue

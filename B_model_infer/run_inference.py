@@ -3,10 +3,11 @@
 
     python -m B_model_infer.run_inference --run-id kronos_base_v1 --config configs/base.yaml \
         [--start 2024-07-01 --end 2025-06-30 --step 5 --lookback 400 --horizon 5 --sample-count 20]
-        [--backend kronos|dummy] [--device cuda:0] [--batch-size 256]
+        [--profile base|paper] [--backend kronos|dummy] [--device cuda:0] [--batch-size 256]
 
 Sampling parameters (lookback, pred_len, step, temperature, top_p, sample_count) come from the
-inference profile `infer.profiles.<infer.default_profile>`; CLI flags override them for one run.
+inference profile `infer.profiles.<profile>` (default infer.default_profile, D-12: base); CLI flags override
+them for one run. The manifest records `profile` and those values. as_of dates = rebalance_dates(start, end, step).
 Resumable: dates whose parquet already exists are skipped. Files are written atomically.
 """
 from __future__ import annotations
@@ -46,14 +47,14 @@ def profile_cfg(cfg: dict, name: str | None = None) -> dict:
     return {"profile": name, **prof}
 
 
-def make_backend(cfg: dict, name: str, prices: pd.DataFrame, signal_strength: float = 0.0):
+def make_backend(cfg: dict, name: str, prices: pd.DataFrame, signal_strength: float = 0.0, profile: str | None = None):
     seed = int(cfg_get(cfg, "project.seed", 0))
     if name == "dummy":
         from B_model_infer.backends import DummyBackend
         return DummyBackend(seed=seed, signal_strength=signal_strength, prices=prices if signal_strength > 0 else None)
     if name == "kronos":
         from B_model_infer.backends import KronosBackend
-        prof = profile_cfg(cfg)
+        prof = profile_cfg(cfg, profile)
         return KronosBackend(
             model_name=cfg_get(cfg, "model.name"), tokenizer_name=cfg_get(cfg, "model.tokenizer"),
             revision=cfg_get(cfg, "model.revision"), kronos_repo=cfg_get(cfg, "model.kronos_repo"),
@@ -66,15 +67,17 @@ def make_backend(cfg: dict, name: str, prices: pd.DataFrame, signal_strength: fl
 
 
 def run(cfg: dict, run_id: str, backend, root: Path = Path("."), prices: pd.DataFrame | None = None,
-        constituents: dict | None = None, log=print, extra_manifest: dict | None = None) -> list[pd.Timestamp]:
-    """Core loop, importable for tests and for make_fake_predictions. Returns dates written."""
+        constituents: dict | None = None, log=print, extra_manifest: dict | None = None,
+        profile: str | None = None) -> list[pd.Timestamp]:
+    """Core loop, importable for tests and for make_fake_predictions. Returns dates written.
+    profile: inference profile name (None = infer.default_profile)."""
     paths = Paths(cfg, root)
     if prices is None:
         prices = load_prices(cfg, root, include_benchmark=False)
     if constituents is None:
         constituents = load_constituents(cfg, root)
 
-    prof = profile_cfg(cfg)
+    prof = profile_cfg(cfg, profile)
     lookback, horizon = int(prof["lookback"]), int(prof["pred_len"])
     sample_count, step = int(prof["sample_count"]), int(prof["step"])
     start, end = cfg_get(cfg, "period.start"), cfg_get(cfg, "period.end")
@@ -146,6 +149,7 @@ def parse_args(argv=None):
     p.add_argument("--config", default="configs/base.yaml")
     p.add_argument("--root", default=str(Path(__file__).resolve().parents[1]))
     p.add_argument("--backend", default="kronos", choices=["kronos", "dummy"])
+    p.add_argument("--profile", help="inference profile (infer.profiles.*); default infer.default_profile")
     p.add_argument("--start"); p.add_argument("--end")
     p.add_argument("--step", type=int); p.add_argument("--lookback", type=int); p.add_argument("--horizon", type=int)
     p.add_argument("--sample-count", type=int); p.add_argument("--batch-size", type=int)
@@ -158,7 +162,8 @@ def main(argv=None):
     a = parse_args(argv)
     root = Path(a.root)
     cfg = load_config(root / a.config)
-    prof = f"infer.profiles.{cfg_get(cfg, 'infer.default_profile', 'base')}"
+    profile = a.profile or cfg_get(cfg, 'infer.default_profile', 'base')
+    prof = f"infer.profiles.{profile}"
     cfg = cfg_override(cfg, {
         "period.start": a.start, "period.end": a.end,
         f"{prof}.step": a.step, f"{prof}.lookback": a.lookback, f"{prof}.pred_len": a.horizon,
@@ -166,12 +171,12 @@ def main(argv=None):
         "model.batch_size": a.batch_size, "model.device": a.device, "model.name": a.model, "model.tokenizer": a.tokenizer,
         "model.revision": a.revision, "model.kronos_repo": a.kronos_repo,
     })
-    p = profile_cfg(cfg)
+    p = profile_cfg(cfg, profile)
     if int(p["step"]) != int(p["pred_len"]):
         print(f"note: profile {p['profile']} step={p['step']} != pred_len={p['pred_len']} (weekly profile expects equal)")
     prices = load_prices(cfg, root, include_benchmark=False)
-    backend = make_backend(cfg, a.backend, prices)
-    written = run(cfg, a.run_id, backend, root=root, prices=prices)
+    backend = make_backend(cfg, a.backend, prices, profile=profile)
+    written = run(cfg, a.run_id, backend, root=root, prices=prices, profile=profile)
     print(f"done: {len(written)} new date files in {Paths(cfg, root).predictions_dir(a.run_id)}")
 
 

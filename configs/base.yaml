@@ -46,7 +46,7 @@ universe:
     kospi: KOSPI
     kosdaq: KOSDAQ
   variant: base                # D-4: main sample. liq5 / clean are sensitivity runs under their own run_id (trials.csv)
-  top_n_mktcap: null           # [사용자] integer -> keep only the N largest by as_of market cap (paper CSI 300 analogue: KOSPI 200); null = all
+  top_n_mktcap: null           # [사용자] integer -> keep only the N largest by as_of market cap (paper CSI 300 analogue: KOSPI 200); null = all. D-12: stays null
   max_stale_days: 5            # a ticker whose last bar is older than this (calendar days) at as_of is skipped by B_model_infer
   # --- investability filters applied when building constituents (A_data_prepare, trailing data only; do not rename) ---
   common_stock_only: true      # 6-digit code ending in 0 (drop 우선주 etc.)
@@ -86,7 +86,7 @@ model:                         # D-7: Kronos model identity and GPU runtime (B_m
   device: cuda:0
 
 infer:                         # D-7: inference profiles. One run_id follows one profile; manifest.profile records it. seed = project.seed only
-  default_profile: base
+  default_profile: base        # D-12: real inference and the Stage 2 fake predictions use this profile only; --profile exists for Stage 6
   profiles:
     base:                      # this project's default (weekly rebalancing). Values carried over from the previous model.* / run.step
       lookback: 400
@@ -103,8 +103,10 @@ infer:                         # D-7: inference profiles. One run_id follows one
       top_p: 0.9
       sample_count: 10         # paper table 6: N = 10. The official repo's finetune/config.py uses 5
 
-signal:                        # C_signal baseline features (was features.*)
-  mom_window: 20
+signal:                        # C_signal. D-3: signal rows = that day's backtest universe ∩ tickers present in the run_id's prediction file;
+                               #           baseline features are attached to those rows only, so every strategy picks from the same set
+  n_samples: 20                # D-11: aggregate uses the first n_samples sample_ids per (as_of, ticker); fewer -> error. Same definition even if sample_count is larger
+  mom_window: 20               # baseline features (mom20, vol20, rev5) from adjusted close up to as_of only
   vol_window: 20
   rev_window: 5
 
