@@ -120,3 +120,13 @@
 - K(momentum20\_topk, random\_topk)는 전략 파라미터로 둔다(configs `strategies.<name>.k`, 기본 20). 고정값으로 확정하지 않고 실행 시 바꿔 가며 테스트한다: `python -m D_strategy.run_strategy ... --set strategies.random_topk.k=50`. 바꿔 돌린 결과는 run\_id·trials.csv로 구분한다(Stage 5).
 - 비중 파일의 날짜 컬럼 이름은 `as_of_date`로 통일한다(예측·시그널과 같은 키). spec Stage 3의 rebalance\_date 표기를 as\_of\_date로 고쳤다. 값은 시그널일(= 리밸런싱 결정일)이고 체결은 다음 거래일이다.
 - 보류(NaN) 규약은 Stage 3 구현을 기준으로 한다: 비중 파일에 NaN이 남고, prev\_w에는 직전 목표 비중이 이어진다.
+
+## Stage 4 보고서 후속 (2026-10-03)
+
+### D-15. 비용과 K의 기본값: 논문 investment simulation 값
+
+- 사용자 지시: "cost와 k는 논문 investment simulation에서 사용한 값을 기본값으로 두고 나중에 수정한다."
+- `costs.scenario: paper` (매수 0.10%, 매도 0.15%, 세금·슬리피지 없음; 공식 레포 qlib 설정). 한국 세율표(`costs.sell_tax_table`)가 채워지면 kr로 바꾼다. `--costs kr|paper`, `--no-costs`로 언제든 덮어쓴다.
+- K = 50 (논문 CSI 300 설정, 공식 레포 n\_symbol\_hold 50): strategies.momentum20\_topk.k, random\_topk.k, vol\_target.k, topk.k = 50, topk.n\_drop = 5, hold\_min\_days 5. CSI 800 대응(k 200, n 10)은 `--set`으로 돌린다.
+- 결과 폴더: paper 비용이 기본이므로 기본 결과 폴더는 `@paper_costs`다(Stage 4의 접미사 규칙 유지).
+- 미결: `backtest.delist_policy`(Stage 4 질문 2, 제안 last\_close). 정해질 때까지 실행에 `--set backtest.delist_policy=last_close`를 쓴다.

@@ -114,15 +114,15 @@ signal:                        # C_signal. D-3: signal rows = that day's backtes
 
 strategies:                    # one strategy = one file. key = file name = registry name. profile = which predictions, schedule = weekly (H spacing) | daily
   equal_weight:    {profile: base, schedule: weekly}
-  momentum20_topk: {profile: base, schedule: weekly, k: 20}                   # D-14: K is a strategy parameter; vary it with run_strategy --set strategies.momentum20_topk.k=N
-  random_topk:     {profile: base, schedule: weekly, k: 20}                   # D-14: same; --set strategies.random_topk.k=N
+  momentum20_topk: {profile: base, schedule: weekly, k: 50}                   # D-14/D-15: K is a strategy parameter, default = paper k 50; vary with run_strategy --set strategies.momentum20_topk.k=N
+  random_topk:     {profile: base, schedule: weekly, k: 50}                   # D-14/D-15: same, default = paper k 50
   topk:            {profile: paper, schedule: daily, signal_col: exp_ret_mean,
-                    k: null, n_drop: null, hold_min_days: 5}                   # [사용자] paper CSI 300: k 50, n 5 / CSI 800: k 200, n 10
+                    k: 50, n_drop: 5, hold_min_days: 5}                       # D-15: paper CSI 300 setting (k 50, n 5; official repo n_symbol_hold 50 / drop 5). CSI 800: k 200, n 10
   conf_weighted:   {profile: base, schedule: weekly, signal_col: exp_ret, threshold: null}   # [사용자] threshold (previous placeholder: 0.5)
-  vol_target:      {profile: base, schedule: weekly, signal_col: exp_ret, k: null}           # [사용자] K (previous placeholder: 20)
+  vol_target:      {profile: base, schedule: weekly, signal_col: exp_ret, k: 50}             # D-15: default = paper k 50
 
 costs:
-  scenario: kr                 # kr (Korean costs below) | paper (original paper's costs, sensitivity comparison)
+  scenario: paper              # D-15: default = the paper's investment-simulation costs until the user fills the Korean table; kr | paper
   commission_buy: 0.00015      # previous config backtest.costs.KR.commission
   commission_sell: 0.00015
   slippage_bps: 5              # previous config backtest.costs.KR.slippage 0.0005
@@ -146,8 +146,13 @@ backtest:
     max_participation: null    # [사용자] order value / same-day traded value cap
 
 evaluate:
+  benchmark: equal_weight      # D-6 (tentative, fixed in Stage 5): equal_weight of the same signal universe | an index ticker in data.index_tickers (e.g. KOSPI)
+  reference_indices: [KOSPI, KOSDAQ]   # D-6: index buy & hold reported alongside as reference lines
+  periods_per_year: 252
+  risk_free: 0.0
   quantiles: 5
-  bootstrap: {n: 2000, block: 20}
+  min_cross_section: 10        # an as_of date needs at least this many (signal, label) pairs for an IC / quantile row
+  bootstrap: {n: 2000, block: 20}   # circular block bootstrap of the Sharpe ratio; seed = project.seed
   regimes: {split: half_year}
 
 report:
