@@ -2,6 +2,7 @@
 """D_strategy entry point: data/C_signals/{run_id}/signals.parquet -> data/D_weights/{run_id}/{strategy}.parquet.
 
     python -m D_strategy.run_strategy --run-id fake_dummy_base --strategy all|a,b [--config configs/base.yaml] [--root .]
+                                      [--set strategies.random_topk.k=50 ...]   # dotted config overrides (D-14), YAML-parsed values
 
 Per strategy: (1) the run_id's manifest profile must equal the strategy's profile, else a clear error;
 (2) rebalance dates follow the schedule: weekly = rebalance_dates(period.start, period.end, H) on the trading
@@ -25,7 +26,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from common.calendar import rebalance_dates  # noqa: E402
-from common.config import cfg_get, load_config, require  # noqa: E402
+from common.config import cfg_get, cfg_override, load_config, parse_set_overrides, require  # noqa: E402
 from common.meta import atomic_parquet, write_meta  # noqa: E402
 from common.paths import Paths  # noqa: E402
 from common.schema import validate_signals, validate_weights  # noqa: E402
@@ -128,9 +129,10 @@ def main(argv=None):
     p.add_argument("--strategy", required=True, help="comma-separated names or 'all'")
     p.add_argument("--config", default="configs/base.yaml")
     p.add_argument("--root", default=str(ROOT))
+    p.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="override a dotted config key, e.g. strategies.random_topk.k=50")
     a = p.parse_args(argv)
     root = Path(a.root)
-    cfg = load_config(root / a.config)
+    cfg = cfg_override(load_config(root / a.config), parse_set_overrides(a.set))
     run_strategies(cfg, a.run_id, resolve(a.strategy), root)
 
 

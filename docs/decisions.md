@@ -112,3 +112,11 @@
 ## Stage 2 보고서 후속 (2026-10-03)
 
 사용자 지시: "spec의 구현을 우선으로 두고 decisions.md를 맞춘다." 이에 따라 D-11·D-12를 위와 같이 고쳤다. dummy의 정의는 spec 부록 A가 DummyBackend(signal\_strength 0)를 허용하므로 그대로 둔다(D-3 유지). 수행 내용과 새로 결정이 필요한 사항은 각 Stage 보고서의 "명세서와 달라진 점"·"질문" 절에 계속 적는다.
+
+## Stage 3 보고서 후속 (2026-10-03)
+
+### D-14. 벤치마크 전략의 K와 비중 파일 용어
+
+- K(momentum20\_topk, random\_topk)는 전략 파라미터로 둔다(configs `strategies.<name>.k`, 기본 20). 고정값으로 확정하지 않고 실행 시 바꿔 가며 테스트한다: `python -m D_strategy.run_strategy ... --set strategies.random_topk.k=50`. 바꿔 돌린 결과는 run\_id·trials.csv로 구분한다(Stage 5).
+- 비중 파일의 날짜 컬럼 이름은 `as_of_date`로 통일한다(예측·시그널과 같은 키). spec Stage 3의 rebalance\_date 표기를 as\_of\_date로 고쳤다. 값은 시그널일(= 리밸런싱 결정일)이고 체결은 다음 거래일이다.
+- 보류(NaN) 규약은 Stage 3 구현을 기준으로 한다: 비중 파일에 NaN이 남고, prev\_w에는 직전 목표 비중이 이어진다.

@@ -22,7 +22,8 @@ A_data_prepare/        KRX Open API -> data/raw, data/universe (docs/data_pipeli
 B_model_infer/         Kronos 추론 (RunPod). build_batch.py backends.py run_inference.py make_fake_predictions.py -> data/B_predictions/{run_id}/
 C_signal/              aggregate.py baseline_features.py run_signal.py -> data/C_signals/{run_id}/signals.parquet (Stage 2)
 D_strategy/            base.py registry.py equal_weight.py momentum20_topk.py random_topk.py run_strategy.py -> data/D_weights/{run_id}/{strategy}.parquet (Stage 3)
-E_backtest/ F_evaluate/ G_report/   Stage 4~8에서 채움 (지금은 빈 패키지)
+E_backtest/            costs.py engine_v1_weights.py run_backtest.py -> data/E_backtest/{run_id}/v1/{strategy}[@no_costs|@paper_costs]/ (Stage 4)
+F_evaluate/ G_report/  Stage 5~8에서 채움 (지금은 빈 패키지)
 scripts/probes/        [확인 필요] 항목을 실제 데이터로 확인하는 1회성 스크립트
 data/                  krx_raw/<snapshot>/ raw/ universe/ MANIFEST.json (수집 산출물, 유지) + A_prepared/ B_predictions/ ... (단계 산출물)
 tests/                 test_common.py (Stage 0), test_data_prepare.py, test_no_lookahead.py
@@ -76,7 +77,11 @@ python -m B_model_infer.make_fake_predictions --kind dummy    # data/B_predictio
 python -m B_model_infer.make_fake_predictions --kind oracle   # data/B_predictions/fake_oracle_base/ (실제 미래 가격, 엔진 배선 테스트 전용)
 python -m C_signal.run_signal --run-id fake_oracle_base       # data/C_signals/fake_oracle_base/signals.parquet + meta.json
 python -m D_strategy.run_strategy --run-id fake_dummy_base --strategy all   # data/D_weights/fake_dummy_base/{strategy}.parquet (+ .meta.json)
+python -m E_backtest.run_backtest --run-id fake_dummy_base --strategy all --no-costs   --set backtest.delist_policy=last_close   # 엔진 v1, 비용 0
+python -m E_backtest.run_backtest --run-id fake_dummy_base --strategy all --costs paper --set backtest.delist_policy=last_close   # 논문 비용
 ```
+
+`--costs kr`(기본)은 `costs.sell_tax_table`이, 보유 종목이 상장폐지되면 `backtest.delist_policy`가 필요하다(사용자 결정 값; 없으면 명확한 오류). `--set key=value`로 설정을 일회성으로 덮어쓴다.
 
 `--profile paper`로 paper 프로필(매 거래일, H 10, N 10) 가짜 예측도 만든다(fake_{dummy,oracle}_paper). 전략은 `D_strategy/<name>.py` 하나에 하나이며 이름 = 파일명 = `strategies.<name>` 설정 키다.
 
@@ -84,4 +89,4 @@ python -m D_strategy.run_strategy --run-id fake_dummy_base --strategy all   # da
 
 ## 진행
 
-[docs/spec.md](docs/spec.md)의 "사용법"대로 한 Stage씩 진행한다. 완료: Stage 0 (기반 정리), Stage 1 (A_data_prepare 기준 데이터), Stage 2 (가짜 예측 + C_signal), Stage 3 (D_strategy 인터페이스와 벤치마크). 다음: Stage 4 (E_backtest 엔진 v1과 비용).
+[docs/spec.md](docs/spec.md)의 "사용법"대로 한 Stage씩 진행한다. 완료: Stage 0 (기반 정리), Stage 1 (A_data_prepare 기준 데이터), Stage 2 (가짜 예측 + C_signal), Stage 3 (D_strategy 인터페이스와 벤치마크), Stage 4 (E_backtest 엔진 v1과 비용). 다음: Stage 5 (F_evaluate 채점).

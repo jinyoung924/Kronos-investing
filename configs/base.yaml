@@ -114,8 +114,8 @@ signal:                        # C_signal. D-3: signal rows = that day's backtes
 
 strategies:                    # one strategy = one file. key = file name = registry name. profile = which predictions, schedule = weekly (H spacing) | daily
   equal_weight:    {profile: base, schedule: weekly}
-  momentum20_topk: {profile: base, schedule: weekly, k: 20}                   # [사용자 확정 필요] K. 잠정값 20 (옛 설정 값, Stage 3 보고서 질문 1)
-  random_topk:     {profile: base, schedule: weekly, k: 20}                   # [사용자 확정 필요] K. 잠정값 20 (옛 설정 값, Stage 3 보고서 질문 1)
+  momentum20_topk: {profile: base, schedule: weekly, k: 20}                   # D-14: K is a strategy parameter; vary it with run_strategy --set strategies.momentum20_topk.k=N
+  random_topk:     {profile: base, schedule: weekly, k: 20}                   # D-14: same; --set strategies.random_topk.k=N
   topk:            {profile: paper, schedule: daily, signal_col: exp_ret_mean,
                     k: null, n_drop: null, hold_min_days: 5}                   # [사용자] paper CSI 300: k 50, n 5 / CSI 800: k 200, n 10
   conf_weighted:   {profile: base, schedule: weekly, signal_col: exp_ret, threshold: null}   # [사용자] threshold (previous placeholder: 0.5)

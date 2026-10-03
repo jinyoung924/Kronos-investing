@@ -46,6 +46,20 @@ def cfg_override(cfg: dict, overrides: dict[str, Any]) -> dict:
     return out
 
 
+def parse_set_overrides(items: list[str] | None) -> dict[str, Any]:
+    """['a.b=1', 'c.d=[1, 2]'] -> {'a.b': 1, 'c.d': [1, 2]} with YAML-parsed values (for CLI --set flags)."""
+    out: dict[str, Any] = {}
+    for item in items or []:
+        if "=" not in item:
+            raise ValueError(f"--set expects KEY=VALUE, got {item!r}")
+        key, value = item.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise ValueError(f"--set expects a dotted key before '=', got {item!r}")
+        out[key] = yaml.safe_load(value)
+    return out
+
+
 def require(cfg: dict, key: str) -> Any:
     """Return cfg[key]; raise ConfigError when the key is absent or null (a `[사용자]` value not filled in)."""
     value = cfg_get(cfg, key, None)
