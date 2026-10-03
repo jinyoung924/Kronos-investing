@@ -82,3 +82,13 @@ def all_tickers(constituents_by_index: dict[str, pd.DataFrame], start=None, end=
             c = c[c["date"] <= pd.Timestamp(end)]
         out[idx] = sorted(c["ticker"].unique().tolist())
     return out
+
+
+def get_universe(universe: pd.DataFrame, date, market: str | None = None) -> list[str]:
+    """Spec name (docs/spec.md Stage 1): members of the latest snapshot dated <= date from a long
+    (date, ticker[, market]) frame such as data/A_prepared/universe.parquet. Optional market filter."""
+    if market is not None:
+        if "market" not in universe.columns:
+            raise ValueError("universe frame has no market column")
+        universe = universe[universe["market"] == market]
+    return universe_at(universe, date)

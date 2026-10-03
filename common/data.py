@@ -17,6 +17,7 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
+from common.calendar import rebalance_dates as _rebalance_dates
 from common.config import cfg_get
 from common.paths import Paths
 
@@ -81,12 +82,8 @@ def trading_calendar(prices: pd.DataFrame) -> pd.DatetimeIndex:
     return pd.DatetimeIndex(sorted(prices["date"].unique()))
 
 
-def rebalance_dates(calendar: pd.DatetimeIndex, start, end, step: int) -> pd.DatetimeIndex:
-    """Every `step`-th trading day in [start, end], starting at the first trading day >= start."""
-    if step < 1:
-        raise ValueError("step must be >= 1")
-    cal = calendar[(calendar >= pd.Timestamp(start)) & (calendar <= pd.Timestamp(end))]
-    return cal[::step]
+# rebalance_dates lives in common.calendar; re-exported here for existing callers (run_inference, tests).
+rebalance_dates = _rebalance_dates
 
 
 def ffill_wide(wide: pd.DataFrame, limit: int | None) -> pd.DataFrame:

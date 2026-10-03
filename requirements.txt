@@ -1,4 +1,5 @@
-# Pinned to the versions the Stage 0 test run used (macOS, Python 3.12). Ranges live in pyproject.toml.
+# D-8: pinned to the versions the Stage 0 test run used (macOS, Python 3.12); keep as is. Ranges live in pyproject.toml.
+# RunPod inference dependencies (torch, huggingface_hub, ...) are NOT here; appendix C-1 pins them in requirements-infer.txt.
 numpy==1.26.4
 pandas==2.2.2
 pyarrow==14.0.2

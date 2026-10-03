@@ -7,17 +7,19 @@ project:
   run_ids:                     # real prediction run_id per profile. Fake predictions: fake_dummy_{profile}, fake_oracle_{profile}
     base: kronos_base_v1
     paper: kronos_paper_v1
-  seed: 42                     # every random draw (dummy backend, random strategy, bootstrap) derives from this
+  seed: 42                     # D-7: the single seed; every random draw (dummy backend, random strategy, bootstrap) derives from this
 
 period:                        # evaluation window (was run.start / run.end in the previous config)
   start: "2024-07-01"          # fixed: Kronos-base training data ends 2024-06 -> the following year is out-of-sample
   end: "2025-06-30"            # prices run to 2025-07-15 so labels (H = 5) are covered
 
 data:
-  markets: [KOSPI, KOSDAQ]     # `market` values in prepared prices; sell_tax_table keys. Collection itself is driven by krx.markets
-  price_basis: null            # [사용자] raw | adjusted. Must equal the Kronos input basis. outline.md: build_batch rebases to as_of
-                               #          adj_factor so predictions are on the as_of RAW scale -> expected answer "raw" (Stage 2 decision)
-  index_tickers:               # benchmark index levels held in data/raw/benchmark/prices.parquet (was benchmark.index_tickers)
+  markets: [KOSPI, KOSDAQ]     # D-2: the ONLY market key new code (Stage 1+) reads. `market` values in prepared prices, sell_tax_table keys.
+                               #      krx.markets / universe.markets stay for the collection pipeline and common.data.load_prices only
+  price_basis: raw             # D-1: build_batch rebases to the as_of adj_factor, so predictions are on the as_of RAW scale
+                               #      (scripts/probes/stage0_price_basis.py). C_signal last_close = as_of raw close
+  index_tickers:               # D-6: index levels (and krx.benchmark_etfs ETFs) are all exposed in data/A_prepared/benchmark.parquet.
+                               #      Primary benchmark for relative metrics is fixed in Stage 5 (D-6 tentative: EqualWeight of the same universe)
     kospi: "KOSPI"
     kosdaq: "KOSDAQ"
   # --- fixed collection paths (docs/data_pipeline.md; MANIFEST.json is keyed on them) ---
@@ -34,13 +36,16 @@ data:
   metrics_dir: data/F_metrics
   reports_dir: reports
   ffill_limit: 5               # forward-fill price gaps (holidays) up to this many rows; longer gaps = missing
+  max_daily_move: 0.35         # diagnostics only (Stage 1 unexplained_moves): |adjusted simple return| above this is listed;
+                               # the +-30% daily limit never trips it, liquidation trading (no limit) and missed events do (data_pipeline.md §5-5)
+  delist_window_days: 14       # diagnostics only: a big move within this many trading days of a ticker's last row = liquidation
 
 universe:
   indices: [kospi, kosdaq]     # one index key per exchange; data/raw/{index}/prices.parquet, data/universe/constituents_{index}
   markets:                     # index key -> market label used by common.data.load_prices
     kospi: KOSPI
     kosdaq: KOSDAQ
-  variant: base                # [사용자] which constituents variant the backtest reads: base | liq5 | clean (spec: universe.name)
+  variant: base                # D-4: main sample. liq5 / clean are sensitivity runs under their own run_id (trials.csv)
   top_n_mktcap: null           # [사용자] integer -> keep only the N largest by as_of market cap (paper CSI 300 analogue: KOSPI 200); null = all
   max_stale_days: 5            # a ticker whose last bar is older than this (calendar days) at as_of is skipped by B_model_infer
   # --- investability filters applied when building constituents (A_data_prepare, trailing data only; do not rename) ---
@@ -70,7 +75,7 @@ krx:                           # A_data_prepare (KRX Open API). Do not rename.
   cache_dir: data/krx_raw       # raw JSON lives under {cache_dir}/{snapshot}/{api_id}/{YYYYMMDD}.json
   snapshot: "2026-09-28"        # vintage: the day the raw pulls ran. Frozen afterwards; a new pull = a new snapshot
 
-model:                         # Kronos model identity and GPU runtime (B_model_infer). Per-profile sampling knobs live in infer.profiles
+model:                         # D-7: Kronos model identity and GPU runtime (B_model_infer). Per-profile sampling knobs live in infer.profiles
   name: NeoQuasar/Kronos-base
   tokenizer: NeoQuasar/Kronos-Tokenizer-base
   revision: main               # HF revision; the resolved commit sha is written to manifest.json
@@ -80,7 +85,7 @@ model:                         # Kronos model identity and GPU runtime (B_model_
   batch_size: 256              # sequences per forward pass (tickers x samples); tune to GPU memory
   device: cuda:0
 
-infer:                         # inference profiles. One run_id follows one profile; manifest.profile records it
+infer:                         # D-7: inference profiles. One run_id follows one profile; manifest.profile records it. seed = project.seed only
   default_profile: base
   profiles:
     base:                      # this project's default (weekly rebalancing). Values carried over from the previous model.* / run.step

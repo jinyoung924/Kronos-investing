@@ -18,7 +18,7 @@ Kronos-base(https://github.com/shiyu-coder/Kronos)의 zero-shot 예측으로 KOS
 ```
 configs/base.yaml      모든 설정 (spec.md "공통 설정" 뼈대; [사용자] 값은 null로 두고 사용자가 채운다)
 common/                config.py paths.py schema.py lookahead.py meta.py data.py universe.py synthetic.py
-A_data_prepare/        KRX Open API -> data/raw, data/universe (docs/data_pipeline.md). Stage 1에서 data/A_prepared/ 추가
+A_data_prepare/        KRX Open API -> data/raw, data/universe (docs/data_pipeline.md); run_prepare.py -> data/A_prepared/ (Stage 1)
 B_model_infer/         Kronos 추론 (RunPod). build_batch.py backends.py run_inference.py -> data/B_predictions/{run_id}/
 C_signal/ D_strategy/ E_backtest/ F_evaluate/ G_report/   Stage 2~8에서 채움 (지금은 빈 패키지)
 scripts/probes/        [확인 필요] 항목을 실제 데이터로 확인하는 1회성 스크립트
@@ -44,12 +44,16 @@ python -m A_data_prepare.run fetch --dry-run        # 필요한 호출 수 확�
 python -m A_data_prepare.run                        # probe fetch build benchmark sanity manifest 전체
 python -m A_data_prepare.run build benchmark sanity # 캐시가 있으면 네트워크 없이 파생 단계만
 python -m A_data_prepare.manifest --verify          # 공유받은 data/가 같은 빈티지인지 sha256 검증
+python -m A_data_prepare.run_prepare                # Stage 1: data/raw + data/universe -> data/A_prepared/ (약 6초)
 ```
 
 - `data/raw/{kospi,kosdaq}/prices.parquet` : `date, ticker, open, high, low, close, volume, adj_factor, halted, trdval, ...`
   (원가격 + 조정계수. `raw * adj_factor`가 수정주가. 벤치마크는 `data/raw/benchmark/prices.parquet`)
 - `data/universe/constituents_{index}[_{variant}].parquet` : `date, ticker` 거래일별 point-in-time 스냅샷
 - 원본 JSON은 `data/krx_raw/<snapshot>/`에 빈티지로 고정. 데이터 파일은 커밋하지 않고 `MANIFEST.json`과 메타데이터만 커밋한다.
+- `data/A_prepared/` (Stage 1, 이후 모든 단계의 입력): `prices`(date, ticker, market, OHLCV, value, listed_shares; 원주가),
+  `calendar`(date), `halts`(date, ticker, is_halted), `adj_factor`(date, ticker, factor; 첫날 1인 전진 누적 F, 수정가 = raw × F),
+  `events`(ticker, ex_date, ratio, r, applied, ...), `universe`(date, ticker, market; `universe.variant`), `benchmark`(지수·ETF 레벨), `meta.json`
 
 ## 추론 (RunPod GPU)
 
@@ -65,4 +69,4 @@ python -m B_model_infer.run_inference --run-id check --backend dummy --start 202
 
 ## 진행
 
-[docs/spec.md](docs/spec.md)의 "사용법"대로 한 Stage씩 진행한다. 완료: Stage 0 (기반 정리). 다음: Stage 1 (A_data_prepare 기준 데이터).
+[docs/spec.md](docs/spec.md)의 "사용법"대로 한 Stage씩 진행한다. 완료: Stage 0 (기반 정리), Stage 1 (A_data_prepare 기준 데이터). 다음: Stage 2 (가짜 예측 + C_signal).
