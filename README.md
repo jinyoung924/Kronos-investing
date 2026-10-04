@@ -21,7 +21,7 @@ common/                config.py paths.py schema.py lookahead.py meta.py data.py
 A_data_prepare/        KRX Open API -> data/raw, data/universe (docs/data_pipeline.md); run_prepare.py -> data/A_prepared/ (Stage 1)
 B_model_infer/         Kronos 추론 (RunPod). build_batch.py backends.py run_inference.py make_fake_predictions.py pod_inputs.py verify_run.py checksum.py env_info.py -> data/B_predictions/{run_id}/
 C_signal/              aggregate.py baseline_features.py run_signal.py -> data/C_signals/{run_id}/signals.parquet (Stage 2)
-D_strategy/            base.py registry.py equal_weight.py momentum20_topk.py random_topk.py run_strategy.py -> data/D_weights/{run_id}/{strategy}.parquet (Stage 3)
+D_strategy/            base.py registry.py equal_weight.py momentum20_topk.py random_topk.py topk.py conf_weighted.py vol_target.py run_strategy.py -> data/D_weights/{run_id}/{strategy}.parquet (Stage 3)
 E_backtest/            costs.py engine_v1_weights.py run_backtest.py -> data/E_backtest/{run_id}/v1/{strategy}[@no_costs|@paper_costs]/ (Stage 4)
 F_evaluate/            labels.py signal_metrics.py portfolio_metrics.py significance.py run_evaluate.py -> data/F_metrics/{run_id}/ (Stage 5)
 RunPod/                Pod 운영 스크립트와 절차서 (README.md local.sh runpod.sh setup_runpod.sh push_meta.sh inputs.sha256.json)
@@ -83,6 +83,19 @@ python -m B_model_infer.run_inference --run-id check --backend dummy --start 202
 출력은 `data/B_predictions/{run_id}/as_of=YYYY-MM-DD.parquet` + `manifest.json`. 재개 가능(이미 있는 날짜는 건너뜀).
 예측 스키마는 고정: `as_of_date, ticker, horizon_step(1..H), sample_id, pred_open, pred_high, pred_low, pred_close, pred_volume`.
 입력 윈도우는 as_of 시점 조정계수로 rebase하므로 마지막 종가는 as_of의 원주가와 같다 (spec.md 부록 A, scripts/probes/stage0_price_basis.py).
+
+## 실제 예측 연결 (Stage 6)
+
+```bash
+python -m B_model_infer.validate_predictions --run-id kronos_base_v1      # manifest·날짜·유니버스·스텝·가격 기준 검사 -> validation.json
+python -m C_signal.run_signal --run-id kronos_base_v1
+python -m D_strategy.run_strategy --run-id kronos_base_v1 --strategy all --set strategies.conf_weighted.threshold=0.5   # all = 그 run_id 프로필의 전략 전부
+python -m E_backtest.run_backtest --run-id kronos_base_v1 --strategy all --costs paper --set backtest.delist_policy=last_close
+python -m F_evaluate.run_evaluate --run-id kronos_base_v1 --strategy all --set strategies.conf_weighted.threshold=0.5 --set backtest.delist_policy=last_close
+python scripts/probes/stage6_mean_reversion.py                             # exp_ret과 입력 구간 z의 관계
+```
+
+Kronos 전략: `topk`(paper 프로필, 매일, Top-k/Drop-n), `conf_weighted`·`vol_target`(base 프로필, 주 1회). paper 프로필 run_id에서 벤치마크 전략을 돌릴 때는 `--set strategies.<name>.profile=paper`.
 
 ## 가짜 예측과 시그널 (로컬, Kronos 없이)
 

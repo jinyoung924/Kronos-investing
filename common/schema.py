@@ -195,7 +195,8 @@ def validate_signals(df: pd.DataFrame) -> pd.DataFrame:
     out = _coerce(df, {**SIGNAL_COLUMNS, **SIGNAL_FEATURE_COLUMNS}, "signal")
     _unique(out, ["as_of_date", "ticker"], "signal")
     _finite(out, ["exp_ret", "exp_ret_mean", "std", "p_up", "pred_range"], "signal")
-    _non_negative(out, ["std", "pred_range", "last_close"], "signal", allow_nan=False)
+    # pred_range may be negative: real Kronos samples do not guarantee pred_high >= pred_low (Stage 6 report)
+    _non_negative(out, ["std", "last_close"], "signal", allow_nan=False)
     if ((out["p_up"] < 0) | (out["p_up"] > 1)).any():
         raise ValueError("signal: p_up must be within [0, 1]")
     if (out["n_samples"] < 1).any():

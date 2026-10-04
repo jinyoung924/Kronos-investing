@@ -4,7 +4,8 @@
     python -m D_strategy.run_strategy --run-id fake_dummy_base --strategy all|a,b [--config configs/base.yaml] [--root .]
                                       [--set strategies.random_topk.k=50 ...]   # dotted config overrides (D-14), YAML-parsed values
 
-Per strategy: (1) the run_id's manifest profile must equal the strategy's profile, else a clear error;
+Per strategy: (1) the run_id's manifest profile must equal the strategy's profile, else a clear error
+(`all` = every strategy whose configured profile is the run's profile);
 (2) rebalance dates follow the schedule: weekly = rebalance_dates(period.start, period.end, H) on the trading
 calendar, daily = every as_of date in the signals; (3) reset(), then weights() per date ascending, each
 output checked against the contract; stored long as (as_of_date, ticker, weight) with zero weights dropped
@@ -133,7 +134,11 @@ def main(argv=None):
     a = p.parse_args(argv)
     root = Path(a.root)
     cfg = cfg_override(load_config(root / a.config), parse_set_overrides(a.set))
-    run_strategies(cfg, a.run_id, resolve(a.strategy), root)
+    names = resolve(a.strategy)
+    if a.strategy.strip() == "all":      # all = every strategy of this run's profile; a named strategy of another profile is an error
+        run_profile = json.loads(Paths(cfg, root).manifest_file(a.run_id).read_text(encoding="utf-8")).get("profile")
+        names = [n for n in names if cfg_get(cfg, f"strategies.{n}.profile") == run_profile]
+    run_strategies(cfg, a.run_id, names, root)
 
 
 if __name__ == "__main__":

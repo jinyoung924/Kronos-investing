@@ -80,6 +80,10 @@ class Paths:
     def checksums_file(self, run_id: str) -> Path:
         return self.predictions_dir(run_id) / "checksums.json"
 
+    def validation_file(self, run_id: str) -> Path:
+        """Summary written by B_model_infer.validate_predictions (Stage 6)."""
+        return self.predictions_dir(run_id) / "validation.json"
+
     # ---- C: signals -------------------------------------------------------------------------------
     def signals_dir(self, run_id: str) -> Path:
         return self._dir("data.signals_dir", "data/C_signals") / run_id

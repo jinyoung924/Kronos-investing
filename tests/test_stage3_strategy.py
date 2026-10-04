@@ -21,7 +21,12 @@ TEST_STRATEGY_PARAMS = {
     "strategies.equal_weight": {"profile": "base", "schedule": "weekly"},
     "strategies.momentum20_topk": {"profile": "base", "schedule": "weekly", "k": K_TEST},
     "strategies.random_topk": {"profile": "base", "schedule": "weekly", "k": K_TEST},
+    # Stage 6 strategies: test values for the user-decided parameters; topk is put on the base profile so `all` runs on one run_id
+    "strategies.topk": {"profile": "base", "schedule": "weekly", "signal_col": "exp_ret_mean", "k": K_TEST, "n_drop": 2, "hold_min_days": 1},
+    "strategies.conf_weighted": {"profile": "base", "schedule": "weekly", "signal_col": "exp_ret", "threshold": 0.0},
+    "strategies.vol_target": {"profile": "base", "schedule": "weekly", "signal_col": "exp_ret", "k": K_TEST},
 }
+EQUAL_K = ("momentum20_topk", "random_topk", "vol_target", "topk")          # hold exactly K names when enough are eligible
 
 
 @pytest.fixture(scope="module")
@@ -173,10 +178,11 @@ def test_run_strategy_writes_weights_for_all_and_checks_profile(tmp_root):
     for name in registry.available():
         w = validate_weights(pd.read_parquet(paths.weights_path("run_base", name)))
         assert list(pd.DatetimeIndex(sorted(w["as_of_date"].unique()))) == list(weekly)
-        assert (w["weight"] > 0).all()                                       # zeros are not stored
+        assert (w["weight"].dropna() > 0).all()                              # zeros are not stored (NaN = hold, topk only)
         meta = json.loads(paths.weights_meta_path("run_base", name).read_text())
         assert meta["stage"] == "D_strategy" and meta["strategy"] == name and meta["run_id"] == "run_base"
-        assert meta["holdings_per_date"]["max"] == (25 if name == "equal_weight" else K_TEST)
+        if name == "equal_weight" or name in EQUAL_K:
+            assert meta["holdings_per_date"]["max"] == (25 if name == "equal_weight" else K_TEST)
         assert res[name]["n_dates"] == len(weekly)
     with pytest.raises(ValueError, match="profile"):
         run_strategies(c, "run_paper", ["equal_weight"], root, log=lambda *_: None)
@@ -228,7 +234,7 @@ def test_real_weights_on_disk():
     if not paths.weights_path("fake_dummy_base", "equal_weight").exists():
         pytest.skip("run D_strategy.run_strategy --run-id fake_dummy_base --strategy all first")
     sig = pd.read_parquet(paths.signals_path("fake_dummy_base"))
-    for name in registry.available():
+    for name in ("equal_weight", "momentum20_topk", "random_topk"):
         w = validate_weights(pd.read_parquet(paths.weights_path("fake_dummy_base", name)))
         assert w["as_of_date"].nunique() == 49
         for d, g in w.groupby("as_of_date"):
