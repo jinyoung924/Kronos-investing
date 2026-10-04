@@ -158,7 +158,7 @@ PY
 bash RunPod/push_meta.sh "$OUT" || true              # early push: the local side can already find the pod (ssh_host, ssh_port)
 
 # --- inputs: uploaded by RunPod/local.sh upload, checked against the committed RunPod/inputs.sha256.json ----------
-if [[ -d "$INPUTS_DIR" ]]; then cp -a "$INPUTS_DIR"/. "$REPO_DIR"/; fi
+if [[ -d "$INPUTS_DIR" ]]; then cp -r "$INPUTS_DIR"/. "$REPO_DIR"/; fi
 if ! python -m B_model_infer.pod_inputs verify; then
   echo "FATAL: input data is missing or differs from RunPod/inputs.sha256.json. On the local machine run:" >&2
   echo "       bash RunPod/local.sh upload ${RUNPOD_PUBLIC_IP:-<pod ip>} ${RUNPOD_TCP_PORT_22:-<ssh port>}" >&2

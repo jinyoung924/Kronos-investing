@@ -59,7 +59,7 @@ case "$cmd" in
     # shellcheck disable=SC2086
     ssh $so "root@$host" "mkdir -p '$REMOTE_INPUTS'"
     ensure_rsync "$host" "$port"
-    "$PY" -m B_model_infer.pod_inputs list | rsync -av --partial --files-from=- -e "ssh $so" ./ "root@$host:$REMOTE_INPUTS/"
+    "$PY" -m B_model_infer.pod_inputs list | rsync -rtv --partial --files-from=- -e "ssh $so" ./ "root@$host:$REMOTE_INPUTS/"
     echo "uploaded to $host:$REMOTE_INPUTS (runpod.sh copies it into the repo and verifies the sha256 list)"
     ;;
 
@@ -87,7 +87,7 @@ case "$cmd" in
     remote="${remote:-${REMOTE_REPO:-/workspace/Kronos-investing}/$rel}"
     mkdir -p "$rel"
     ensure_rsync "$host" "$port"
-    rsync -av --partial -e "ssh $(ssh_opts "$port")" "root@$host:$remote/" "$rel/"
+    rsync -rtv --partial -e "ssh $(ssh_opts "$port")" "root@$host:$remote/" "$rel/"
     "$PY" -m B_model_infer.checksum verify --run-id "$arg" \
       || die "checksum verify FAILED for $arg (run again to re-copy; do not terminate the pod)"
     echo "$rel/ is complete and verified. Next: bash RunPod/local.sh merge $arg, then terminate $arg"
