@@ -61,12 +61,10 @@ class Paths:
         """data/A_prepared/{name}.parquet (prices, calendar, halts, adj_factor, events, universe)."""
         return self.prepared_dir() / f"{name}.parquet"
 
-    # ---- B: pod bundles (appendix C-1) --------------------------------------------------------------
-    def bundles_dir(self) -> Path:
-        return self._dir("data.bundles_dir", "data/pod_bundles")
-
-    def bundle_path(self, run_id: str) -> Path:
-        return self.bundles_dir() / f"{run_id}.tar.gz"
+    # ---- B: pod inputs (appendix C-1) ---------------------------------------------------------------
+    def pod_inputs_file(self) -> Path:
+        """Committed sha256 list of the data files a pod needs (B_model_infer/pod_inputs.py)."""
+        return self._dir("data.pod_inputs_file", "RunPod/inputs.sha256.json")
 
     # ---- B: predictions ---------------------------------------------------------------------------
     def predictions_dir(self, run_id: str) -> Path:

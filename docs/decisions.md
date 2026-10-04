@@ -148,3 +148,16 @@
 ### D-5 적용 (부록 C-1)
 
 - `infer.profiles.<p>.universe_variant: liq5`. run\_inference·make\_fake\_predictions가 이 변형으로 유니버스를 읽고 manifest에 기록한다. 백테스트 유니버스는 `universe.variant`(base) 그대로이며 C\_signal의 교집합(D-3)이 걸러 준다. 기존 가짜 예측은 liq5로 다시 생성한다.
+
+## 부록 C-1 보고서 후속 (2026-10-04)
+
+### D-18. RunPod 운영 방식: Secure Cloud + 네트워크 볼륨, 코드는 git·데이터는 SSH
+
+- 사용자 지시: Secure Cloud를 쓰고, MMDL-MMMU의 `cloud/` 방식(진입 스크립트 하나, 결과 브랜치, 로컬 헬퍼)을 따라 `RunPod/` 디렉토리에 연결과 결과 회수를 구현한다. 비용보다 안정성과 구현 속도를 우선한다.
+- 코드: 로컬 `RunPod/local.sh push-code` → Pod `git clone`. `git archive` 번들(pod\_bundle.py, B\_model\_infer/pod/setup\_pod.sh)은 없앤다.
+- 입력 데이터(prices, liq5 유니버스 45 MB): git에 없으므로 `local.sh upload`가 SSH로 보내고, Pod가 커밋된 `RunPod/inputs.sha256.json`과 대조한다(`B_model_infer/pod_inputs.py`).
+- 예측 parquet(base 약 250 MB, paper 약 1.3 GB): /workspace 네트워크 볼륨에 쓰고 `local.sh fetch`가 rsync로 회수해 `checksum verify`한다. GitHub에 올리지 않는다(MMDL과 다른 점: 결과가 커서 결과 브랜치에는 메타데이터만 둔다).
+- 메타데이터(manifest.json, checksums.json, cloud\_run.json, requirements.lock.txt): Pod가 `results/<run_id>` 브랜치로 push하고 `local.sh merge`가 main에 병합한다.
+- Pod는 스스로 종료하지 않는다. `local.sh terminate`가 로컬 verify 통과를 확인한 뒤 API로 종료한다(부록 C 원칙 3). RunPod API 키는 로컬에만 필요하다.
+- 자격증명: Secure Cloud이므로 Pod에 fine-grained `GITHUB_TOKEN`(이 레포, Contents read/write)과 `PUBLIC_KEY`를 둔다. 부록 C 원칙 6을 이에 맞게 고쳤다.
+- 이미지: 무엇이든 된다. `RunPod/setup_runpod.sh`가 /workspace/venv에 Python 3.12 + requirements-infer.txt(D-8)를 설치한다. 템플릿 값은 RunPod/README.md §5.

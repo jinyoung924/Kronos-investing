@@ -500,7 +500,7 @@ class Strategy(ABC):
    - 날짜별 종목이 그날 유니버스와 얼마나 겹치는가 (빠진 종목 수)
    - horizon\_step이 1..H, 종목당 샘플 수가 sample\_count인가
    - &#91;확인 필요\] 예측의 가격 수준이 as\_of 종가의 원주가와 수정주가 중 어디에 가까운가 (분할 이력이 있는 종목으로 확인)
-5. RunPod에서 paper 프로필 추론을 돌린다: `python -m B_model_infer.run_inference --run-id kronos_paper_v1 --profile paper`. 유니버스는 선행 결정의 대응안을 따른다(코스피 시총 상위 200이면 `universe.top_n_mktcap: 200`으로 Stage 1 universe를 다시 만들어 별도 run\_id로).
+5. RunPod에서 paper 프로필 추론을 돌린다: `RUN_ID=kronos_paper_v1 PROFILE=paper bash RunPod/runpod.sh` (부록 C-2). 유니버스는 선행 결정의 대응안을 따른다(코스피 시총 상위 200이면 `universe.top_n_mktcap: 200`으로 Stage 1 universe를 다시 만들어 별도 run\_id로).
 6. 실제 run\_id 두 개로 `scripts/run_pipeline.py --run-id kronos_base_v1 --strategy equal_weight,momentum20_topk,random_topk,conf_weighted,vol_target`와 `--run-id kronos_paper_v1 --strategy topk,equal_weight,momentum20_topk,random_topk`를 실행한다(run\_pipeline은 Stage 8에서 만들므로 그 전에는 단계 CLI를 손으로 순서대로 실행). TopK는 `--costs kr`과 `--costs paper` 둘 다 돌린다.
 
 **테스트** (tests/test\_stage6\_kronos.py)
@@ -642,44 +642,20 @@ git show b903c12 --stat                      # 삭제 전 파일 목록
 | tests/test\_engine\_sanity.py | 오라클(실현 ret\_oo를 exp\_ret로 → EqualWeight 대비 비정상 수익·Sharpe > 4; 한 기간 늦추면 사라짐), 랜덤(여러 seed 평균이 EW와 비용 차이만큼만 다름), 단일 종목 buy&hold = 수정 시가 비율, 시장별 비용 손계산 일치, drift 손계산, 체결 불가 → 현금·가격 소실 → 청산 | 4 (test\_stage4) |
 | tests/test\_strategies.py | 모든 등록 전략에 대해 비중 ≥ 0·합 ≤ 1·입력 불변·결정적, 빈 시그널 → 현금, TopK는 단조 변환 불변, ConfidenceWeighted 전액 현금 조건, RandomSignal seed·날짜별 차이 | 3 (test\_stage3) |
 
-## 부록 C. 원 논문 투자 시뮬레이션 설정과 한국 적용
 
-출처: Kronos 논문(arXiv 2508.02739) §4.2.3 "Investment Simulation", 부록 D.3.3, 표 6 "Inference hyperparameters for downstream tasks"; 공식 레포 `finetune/config.py`, `finetune/qlib_test.py` (2026-10-03 확인). 논문 본문과 레포가 다른 항목은 둘 다 적고 어느 쪽을 쓰는지 표시했다.
+## 부록 C. RunPod 추론 운영 (실제 예측 생성)
 
-| 항목 | 논문 / 레포 | 이 프로젝트의 paper 프로필·TopK | 차이와 이유 |
-| --- | --- | --- | --- |
-| 시장·유니버스 | 중국 A주. CSI 300(대형주) 구성종목, CSI 800(중형 포함) 구성종목 | 결정 사항: (a) KOSPI 시총 상위 200 point-in-time ≈ CSI 300, (b) KOSPI+KOSDAQ 풀링 base ≈ CSI 800 | 한국에 같은 지수 구성종목 자료가 없어 시총 순위(point-in-time)로 근사 |
-| 기간 | 테스트는 사전학습 종료(2024-06) 이후. 레포 backtest\_time\_range 2024-07-01 \~ 2025-06-05 | 2024-07-01 \~ 2025-06-30 | 같은 out-of-sample 논리 |
-| 입력 | 일봉, lookback 90 | lookback 90 | 동일 |
-| 예측 길이 | H = 10 | pred\_len 10 | 동일 |
-| 샘플링 | T 0.6, top-p 0.90, N 10 (표 6). 레포 config는 inference\_sample\_count 5 | T 0.6, top\_p 0.9, sample\_count 10 | 논문 표 6을 따른다 |
-| 시그널 | R\_{t→t+H} = (1/H Σ\_{i=1..H} p̂\_{t+i} − p\_t) / p\_t, 종가 예측 사용. 레포는 'mean' 시그널 = 스텝 평균 − 마지막 종가 (샘플은 predictor가 평균) | exp\_ret\_mean = 샘플·스텝 평균 pred\_close / last\_close − 1 | 동일. 원시 샘플을 저장하므로 샘플 평균을 C에서 한다 |
-| 순위·선택 | 매일 순위. Top-k 동일가중 | 매일 순위(schedule daily), 신규 매수 1/k | 동일 |
-| k, n | CSI 300: k 50, n 5. CSI 800: k 200, n 10. 레포 n\_symbol\_hold 50, n\_symbol\_drop 5 | 결정 사항. (a)면 k 50·n 5, (b)면 k 200·n 10 | 유니버스 크기 비율을 맞춘다 |
-| 최소 보유 | 5일 (레포 hold\_thresh 5) | hold\_min\_days 5 | 동일 |
-| 교체 규칙 | Qlib TopkDropoutStrategy: 보유 + 미보유 상위 n 합집합의 하위 n개 매도(bottom), 미보유 상위 매수(top) | Stage 6 작업 1의 규칙 | 동일. 보유 종목 비중은 보류(NaN)로 표현 |
-| 매수 금액 | Qlib: 매도 대금 + 현금을 매수 종목 수로 나눠 전부 배분 | 신규 매수 1/k 고정, 가용 비중 부족 시 비례 축소 | **차이**. drift로 남는 현금이 조금 생길 수 있다. 비중 파일 규약을 단순하게 유지하기 위함 |
-| 체결 | 다음날 시가 (레포 deal\_price open) | 다음 거래일 시가 | 동일 |
-| 비용 | 본문 "거래당 0.15%". 레포 qlib open\_cost 0.1%, close\_cost 0.15%, min\_cost 5 | 기본 kr(수수료 0.015% + 슬리피지 5bp + 거래세 0.18/0.15%). `--costs paper`로 매수 0.10%·매도 0.15% 시나리오도 돌린다 | 한국 실제 비용이 주 결과, 논문 비용은 민감도 |
-| 가격제한 | 레포 limit\_threshold 0.095 (A주 ±10%) | v2 price\_limit\_pct (한국 ±30%) | 시장 차이. v1에는 없음 |
-| 벤치마크 | CSI 300 지수 (레포 SH000300) | 결정 사항: 코스피 지수 / 코스닥 지수 / 유니버스 EqualWeight | — |
-| 지표 | AER(연율화 초과수익), IR. 레포는 excess\_return\_with/without\_cost | AER, IR을 portfolio\_metrics에 같은 이름으로 넣고 비용 전후 둘 다 | 동일 |
-| 모델 | Kronos-base(및 small, mini) zero-shot | Kronos-base + Kronos-Tokenizer-base zero-shot | 동일 |
-
-**해석 시 유의**: 논문 결과(그림 4(e), 그림 9)는 누적수익 곡선과 AER·IR 비교이며 본문에 수치 표가 없다. 재현의 목적은 수치 일치가 아니라 "같은 설정을 다른 시장에 적용했을 때의 상대 성과(벤치마크 대비, naive 대조군 대비)"를 보는 것이다. 유니버스 근사(시총 순위)와 매수 금액 규칙 차이는 결과에 영향을 줄 수 있으므로 보고서에 항상 함께 적는다.
-
-## 부록 D. RunPod 추론 운영 (실제 예측 생성)
-
-실제 Kronos 예측(`kronos_base_v1`)은 RunPod의 RTX 4090 Pod를 생성 작업 동안만 빌려 만들고, 결과를 로컬로 회수한 뒤 반납한다. 로컬 Windows 환경에는 외장 GPU가 없어 CPU로 전체를 생성하는 것은 현실적이지 않다. 이 부록은 Stage 6의 선행 조건이며, Stage 0 이후 언제든 진행할 수 있다.
+실제 Kronos 예측(`kronos_base_v1`)은 RunPod **Secure Cloud**의 RTX 4090 Pod를 생성 작업 동안만 빌려 만들고, 결과를 로컬로 회수한 뒤 반납한다. 로컬 환경에는 외장 GPU가 없어 CPU로 전체를 생성하는 것은 현실적이지 않다. 운영 스크립트와 절차서는 `RunPod/`에 있다(RunPod/README.md, D-18). 이 부록은 Stage 6의 선행 조건이며, Stage 0 이후 언제든 진행할 수 있다.
 
 **원칙**
 
 1. 예측은 한 번 생성하면 고정된 빈티지로 취급한다. 같은 run\_id 폴더를 덮어쓰지 않고, 다시 생성해야 하면 새 run\_id를 쓴다. GPU 샘플링은 seed를 고정해도 GPU·드라이버·CUDA·torch 버전에 따라 비트 단위로 같다는 보장이 없기 때문이다.
 2. GPU 시간은 생성에만 쓴다. 코드 오류는 로컬 CPU 스모크 테스트에서 먼저 잡는다.
-3. 출력은 Pod가 사라져도 남는 저장소(네트워크 볼륨)에 쓴다. 로컬에서 체크섬 대조가 끝나기 전에는 Pod를 terminate하지 않는다.
+3. 출력은 Pod가 사라져도 남는 저장소(/workspace에 연결한 네트워크 볼륨)에 쓴다. 예측 parquet은 SSH(rsync)로 로컬에 회수하고 GitHub에 올리지 않는다. 로컬에서 체크섬 대조가 끝나기 전에는 Pod를 terminate하지 않는다. Pod는 스스로 종료하지 않고, 종료는 로컬 `RunPod/local.sh terminate`가 verify 통과를 확인한 뒤에 한다.
 4. Stage 6 전에는 예측의 성과(IC, 분위 수익률, 전략 수익)를 보지 않는다. 이 부록에서는 구조 검증만 한다. 엔진과 지표가 Kronos 결과를 본 뒤 조정되는 것을 막기 위해서다.
 5. 실행 환경과 시간은 manifest에 남긴다. 결과가 달라졌을 때 원인을 추적할 수 있어야 한다.
-6. Pod에는 GitHub·HF 토큰 같은 개인 자격증명을 두지 않는다. Community Cloud는 제3자 호스트에서 돈다. 프로젝트 코드는 `git archive`로 묶어 올리고, Kronos 코드와 모델은 공개 저장소에서 받는다.
+6. 자격증명은 Secure Cloud Pod에만 둔다(D-18). Pod에 넣는 것은 이 레포에만 쓰기 권한이 있는 fine-grained `GITHUB_TOKEN`과 SSH 공개키 `PUBLIC_KEY`다. Community Cloud(제3자 호스트)는 쓰지 않는다. RunPod API 키는 Pod에서 쓰지 않고 로컬에 둔다. Kronos 코드와 모델은 공개 저장소에서 받으므로 HF 토큰은 두지 않는다.
+7. 코드는 git으로, 데이터는 SSH로 움직인다. Pod는 레포를 clone해 돌고(새 run\_id는 최신 origin/main에서 시작), Pod의 커밋은 `results/<run_id>` 브랜치에만 가며 실행 메타데이터(manifest.json, checksums.json, cloud\_run.json, requirements.lock.txt)만 담는다. Pod에서는 코드를 고치지 않는다.
 
 **선행 결정** (configs/base.yaml. 기존 추론 키가 있으면 그 이름과 위치를 따른다)
 
@@ -709,7 +685,7 @@ infer:
 **요청 문구**
 
 ```text
-docs/outline.md, docs/spec.md의 "부록 C", docs/stage_reports/ 아래 이전 보고서를 읽어줘.
+docs/outline.md, docs/spec.md의 "부록 C", RunPod/README.md, docs/stage_reports/ 아래 이전 보고서를 읽어줘.
 그다음 부록 C의 "C-1. 로컬 준비"만 구현해. Pod 생성이나 네트워크 업로드는 하지 마.
 명세서의 공통 규칙을 지키고, 수정·호출할 기존 코드(B_model_infer/)를 먼저 읽어.
 명세와 실제 레포가 다르면 레포 기준으로 맞추고 보고서에 적어.
@@ -721,45 +697,53 @@ docs/stage_reports/pod_prep.md를 단계 보고서 형식으로 작성한 뒤 "p
 
 1. **B\_model\_infer/env\_info.py**: `collect_env(device) → dict`. 키는 gpu\_name, gpu\_count, driver\_version, cuda\_version, torch\_version, python\_version, dtype, hostname, pod\_id(환경변수 `RUNPOD_POD_ID`가 있으면). CPU에서는 GPU 항목을 None으로 둔다. run\_inference의 `extra_manifest`로 넘긴다.
 2. **manifest 보강**: 날짜 파일을 쓸 때마다 `env_by_date[as_of]`(gpu\_name, driver\_version, hostname)와 `elapsed_by_date[as_of]`(초)를 기록하고, 전체 시작·종료 시각을 남긴다. 중단 후 다른 호스트에서 재개된 날짜를 구분하기 위해서다.
-3. **B\_model\_infer/pod\_bundle.py** `pack|verify --run-id`:
-   - pack: 추론에 필요한 파일만 하나의 tar로 묶는다. `git archive`로 만든 프로젝트 코드(작업 트리가 깨끗하지 않으면 오류), data/raw/{kospi,kosdaq}/prices.parquet, 선택 1에 해당하는 유니버스 파일, configs/base.yaml, requirements.txt, setup\_pod.sh. data/krx\_raw는 넣지 않는다. 묶음 안에 inputs.sha256.json(파일명, 바이트, sha256, 코드 커밋 해시)을 둔다. 경로는 common/paths.py로 만든다.
-   - verify: 풀어 놓은 파일을 inputs.sha256.json과 대조하고, 불일치하면 비정상 종료한다.
-4. **B\_model\_infer/checksum.py** `write|verify --run-id`: data/B\_predictions/{run\_id}/checksums.json(파일명, 바이트, sha256)을 쓰고 대조한다. 파일 개수나 해시가 다르면 비정상 종료한다. 예측 parquet은 커밋하지 않고 manifest.json과 checksums.json만 커밋한다.
-5. **B\_model\_infer/pod/setup\_pod.sh** (Linux): 번들 풀기 → `pod_bundle verify` → 설치된 torch 버전이 requirements.txt와 다르면 중단 → `pip install -r requirements.txt` → Kronos 코드 저장소를 `kronos_repo_commit`으로 clone·checkout → 모델·토크나이저를 revision으로 미리 다운로드 → `nvidia-smi`와 `collect_env` 출력.
-6. **CPU 스모크 테스트**: KronosBackend를 device=cpu로, 리밸런싱일 1개 × 종목 5개 × sample\_count 2로 run\_id `smoke_cpu`에 생성한다. validate\_predictions를 통과하고 manifest에 환경 정보가 있어야 한다. 이 결과 폴더는 커밋하지 않는다.
+3. **B\_model\_infer/pod\_inputs.py** `write|list|verify`: Pod에 필요한 입력 데이터의 sha256 목록을 `RunPod/inputs.sha256.json`(커밋함, 경로는 common/paths.py의 `pod_inputs_file`)으로 관리한다.
+   - 입력 = data/raw/{kospi,kosdaq}/prices.parquet + 추론 프로필들의 universe\_variant(선택 1)에 해당하는 유니버스 파일. data/krx\_raw와 단계 산출물은 넣지 않는다.
+   - write: 목록(파일명, 바이트, sha256)을 쓴다. list: 레포 기준 상대 경로를 출력한다(rsync `--files-from`용). verify `[--src DIR]`: 파일을 목록과 대조하고 불일치하면 비정상 종료한다.
+   - 코드는 git clone으로 가므로 묶지 않는다. 코드 커밋은 Pod가 cloud\_run.json의 `code_commit`에 남긴다.
+4. **B\_model\_infer/checksum.py** `write|verify --run-id`: data/B\_predictions/{run\_id}/checksums.json(파일명, 바이트, sha256)을 쓰고 대조한다. 파일 개수나 해시가 다르면 비정상 종료한다. 예측 parquet은 커밋하지 않고 메타데이터만 결과 브랜치를 거쳐 커밋한다.
+5. **B\_model\_infer/verify\_run.py** `--run-id`: as\_of 파일 수가 manifest의 리밸런싱일 수(예측 가능 종목이 없던 날 제외)와 같은지, 모든 파일이 validate\_predictions를 통과하고 horizon\_step이 1..pred\_len인지 검사하고 skipped 사유별 개수를 출력한다. 성과 수치는 읽지 않는다.
+6. **RunPod/** (운영 스크립트, RunPod/README.md가 절차서):
+   - `setup_runpod.sh` (Pod): /workspace/venv에 Python 3.12 환경을 만들고 requirements-infer.txt를 설치한다(이미지의 torch는 쓰지 않는다). Kronos 코드 저장소를 `kronos_repo_commit`으로 clone·checkout하고, 모델·토크나이저를 revision으로 미리 받는다. 핀 값이 null이면 중단한다. 설치된 torch 버전이 핀과 다르거나 CUDA를 못 쓰면 중단한다. `nvidia-smi`와 `collect_env`를 출력한다.
+   - `runpod.sh` (Pod 진입점): 환경변수 읽기(셸 → PID 1) → 수정된 추적 파일이 있으면 거부 → `results/<run_id>` 브랜치 → push 권한 사전 검사 → setup → cloud\_run.json 기록 → 입력 대조(`pod_inputs verify`) → GPU 스모크 → run\_inference → `verify_run` → `checksum write` → 메타데이터 push. 어떤 종료 경로에서도 상태를 기록하고 push한다. Pod를 종료하지 않는다.
+   - `push_meta.sh` (Pod): `results/*` 브랜치에서만 동작하고 메타데이터 네 파일만 커밋·push한다.
+   - `local.sh` (로컬): `push-code`, `upload <host> <port>`(입력 전송), `fetch <run_id>`(rsync + `checksum verify`), `same <a> <b>`(두 실행의 sha256 비교), `merge`/`drop`, `terminate`(verify 통과 시에만), `ssh`, `list`, `status`.
+7. **CPU 스모크 테스트**: KronosBackend를 device=cpu로, 리밸런싱일 1개 × 종목 5개 × sample\_count 2로 run\_id `smoke_cpu`에 생성한다. validate\_predictions를 통과하고 manifest에 환경 정보가 있어야 한다. 이 결과 폴더는 커밋하지 않는다.
 
 **테스트** (tests/test\_pod\_tools.py)
 
-- pack 결과에 허용 목록 밖의 파일이 없고 data/krx\_raw가 없다
-- 번들 파일 하나를 1바이트 바꾸면 verify가 실패한다
+- pod\_inputs의 목록에 프로필 유니버스 변형과 prices만 있고 data/krx\_raw가 없다
+- 입력 파일 하나를 1바이트 바꾸거나 빼면 pod\_inputs verify가 실패한다
+- verify\_run이 파일 수 불일치와 horizon 불일치를 잡는다
+- push\_meta.sh가 main에서는 거부하고, 결과 브랜치에는 메타데이터만 올린다. local.sh merge는 로컬 verify 통과 후에만 main에 병합한다 (로컬 bare 저장소로 검증)
 - checksum write 후 verify가 통과하고, 파일 하나를 지우거나 바꾸면 실패한다
 - collect\_env가 CPU에서 필수 키를 모두 돌려준다 (GPU 항목은 None)
 - (선택 2를 고른 경우) aggregate가 sample\_id 앞에서부터 n\_samples개만 쓴다
 
-### C-2. Pod 실행 (사용자 작업)
+### C-2. Pod 실행 (사용자 작업, 명령은 RunPod/README.md)
 
-1. **Pod 생성**: RTX 4090 1장. Community Cloud는 싸지만 회수될 수 있고, 재개 기능으로 감당한다. PyTorch 템플릿은 requirements.txt의 torch 버전과 맞는 것을 고른다. 네트워크 볼륨(20GB 안팎)을 /workspace에 연결한다. 볼륨은 특정 데이터센터에 묶이므로 4090 재고가 있는 곳에 만든다. 실행 시점의 시간당 요금을 기록한다.
-2. **업로드와 셋업**: 번들을 /workspace로 올리고(runpodctl send/receive 또는 scp) setup\_pod.sh를 실행한다.
-3. **하루치 probe**: 첫 리밸런싱일 하나로 run\_id `probe_<날짜>`를 실행한다. 본 run\_id와 섞지 않는다.
-   - 날짜당 소요 시간과 GPU 메모리 최대치를 기록한다.
-   - batch\_size를 키워 처리량이 더 늘지 않는 지점을 골라 설정에 기입한다.
-   - 같은 날짜를 한 번 더 돌려 두 결과가 비트 단위로 같은지 기록한다 (결정성).
-   - validate\_predictions가 통과하는지 확인한다.
+1. **Pod 생성**: Secure Cloud, RTX 4090 1장, On-Demand. 네트워크 볼륨(50GB)을 /workspace에 연결한다. 볼륨은 특정 데이터센터에 묶이므로 4090 재고가 있는 곳에 만든다. TCP 22를 expose하고 환경변수 `GITHUB_TOKEN`, `PUBLIC_KEY`를 넣는다. 이미지는 RunPod 공식 이미지면 된다(RunPod/README.md §5). 실행 시점의 시간당 요금을 기록한다.
+2. **코드와 입력**: 로컬에서 `local.sh push-code` 후 Pod에서 레포를 /workspace에 clone한다. 로컬에서 `local.sh upload <host> <port>`로 입력 데이터를 보낸다.
+3. **하루치 probe**: 첫 리밸런싱일 하나로 `RUN_ID=probe_<날짜> INFER_ARGS="--start <날짜> --end <날짜> --batch-size N" bash RunPod/runpod.sh`를 실행한다. 본 run\_id와 섞지 않는다.
+   - 날짜당 소요 시간(manifest `elapsed_by_date`)과 GPU 메모리 최대치를 기록한다.
+   - batch\_size를 키워 처리량이 더 늘지 않는 지점을 골라 설정에 기입하고 push-code한다.
+   - 같은 날짜를 다른 run\_id(`probe_<날짜>_b`)로 한 번 더 돌리고, 둘을 fetch한 뒤 `local.sh same`으로 비트 단위로 같은지 기록한다 (결정성).
+   - verify\_run이 통과하는지 확인한다(runpod.sh가 실행한다).
    - 분할 이력이 있는 종목의 예측 가격이 as\_of 원주가 수준인지 확인한다 (Stage 6의 \[확인 필요\] 항목과 같다).
    - 예상 총시간 = 날짜당 시간 × 리밸런싱일 수, 예상 비용 = 예상 총시간 × 시간당 요금.
-4. **전체 실행**: tmux 세션 안에서 `python -m B_model_infer.run_inference --backend kronos --run-id kronos_base_v1`을 실행한다. 출력은 /workspace 볼륨에 쓴다. SSH 연결이 끊겨도 프로세스는 유지된다.
-5. **Pod에서 검증**: as\_of 파일 수가 rebalance\_dates 수와 같은지, validate\_predictions가 전부 통과하는지, skipped 사유별 개수를 확인한 뒤 `checksum write`를 실행한다.
-6. **회수**: 로컬로 내려받아 `python -m B_model_infer.checksum verify --run-id kronos_base_v1`을 통과시키고 manifest.json, checksums.json을 커밋한다.
-7. **반납**: verify 통과 후 Pod를 terminate한다. 네트워크 볼륨은 로컬 백업을 하나 더 만든 뒤 삭제한다. 남겨 두면 월 단위로 계속 과금된다.
+4. **전체 실행**: tmux 세션 안에서 `RUN_ID=kronos_base_v1 bash RunPod/runpod.sh`를 실행한다. 출력은 /workspace 볼륨의 레포 아래에 쓰인다. SSH 연결이 끊겨도 프로세스는 유지된다.
+5. **Pod에서 검증**: runpod.sh가 추론 뒤에 `verify_run`(as\_of 파일 수 = rebalance\_dates 수, validate\_predictions 전부 통과, skipped 사유별 개수)과 `checksum write`를 실행하고 메타데이터를 결과 브랜치로 push한다.
+6. **회수**: 로컬에서 `local.sh fetch kronos_base_v1`(rsync 후 `checksum verify`)을 통과시키고 `local.sh merge kronos_base_v1`로 메타데이터를 main에 병합한다.
+7. **반납**: verify 통과 후 `local.sh terminate kronos_base_v1`로 Pod를 종료한다. 네트워크 볼륨은 로컬 백업을 하나 더 만든 뒤 웹에서 삭제한다. 남겨 두면 월 단위로 계속 과금된다.
 
 **중단·실패 대응**
 
 | 상황 | 대응 |
 | --- | --- |
-| Pod 회수·중단 | 같은 볼륨으로 새 4090 Pod를 띄워 같은 명령을 재실행한다. 이미 있는 날짜 파일은 건너뛰고, 재개된 날짜는 env\_by\_date로 구분된다 |
+| Pod 중단 | 같은 볼륨으로 새 4090 Pod를 띄워 같은 `RUN_ID`로 runpod.sh를 재실행한다. 이미 있는 날짜 파일은 건너뛰고, 재개된 날짜는 env\_by\_date로 구분된다 |
 | SSH 연결 끊김 | tmux 세션에 다시 붙는다 |
 | GPU 메모리 부족 | batch\_size를 절반으로 줄인다 |
-| 날짜 파일 손상 (validate 실패) | checksum write 전이면 해당 파일만 지우고 재실행한다. write 후라면 새 run\_id로 처음부터 생성한다 |
+| 날짜 파일 손상 (verify\_run 실패) | checksum write 전이면 해당 파일만 지우고 재실행한다. write 후라면 새 run\_id로 처음부터 생성한다 |
 | 4090이 아닌 GPU로 이어서 돌려야 함 | 같은 run\_id에 섞지 않는다. 새 run\_id로 처음부터 생성한다 |
 
 **산출물**
@@ -767,8 +751,10 @@ docs/stage_reports/pod_prep.md를 단계 보고서 형식으로 작성한 뒤 "p
 | 파일 | 커밋 | 내용 |
 | --- | --- | --- |
 | data/B\_predictions/kronos\_base\_v1/as\_of=YYYY-MM-DD.parquet | 안 함 | 원시 예측 샘플 |
-| data/B\_predictions/kronos\_base\_v1/manifest.json | 함 | 모델·추론 설정, revision, 코드 커밋, env, env\_by\_date, elapsed\_by\_date, skipped\_by\_date |
+| data/B\_predictions/kronos\_base\_v1/manifest.json | 함 (결과 브랜치 → merge) | 모델·추론 설정, revision, 코드 커밋, env, env\_by\_date, elapsed\_by\_date, skipped\_by\_date |
 | data/B\_predictions/kronos\_base\_v1/checksums.json | 함 | 파일별 바이트와 sha256 |
+| data/B\_predictions/kronos\_base\_v1/cloud\_run.json, requirements.lock.txt | 함 | 코드 커밋, pod·GPU, 세션, 상태 / 실제 설치된 패키지 |
+| RunPod/inputs.sha256.json | 함 | 입력 데이터의 바이트와 sha256 |
 | docs/stage\_reports/pod\_run.md | 함 | 사용자가 작성하는 실행 기록: Pod 종류와 클라우드 등급, 시간당 요금, 총 시간, 청구액, 중단 여부, probe 결과 |
 
 **완료 기준**
@@ -779,3 +765,29 @@ docs/stage_reports/pod_prep.md를 단계 보고서 형식으로 작성한 뒤 "p
 - [ ] 로컬 checksum verify 통과 후 Pod를 반납했다
 
 **사용자 확인**: probe의 날짜당 시간과 예상 비용, 결정성 결과, 날짜별 skipped 종목 수, 분할 종목의 예측 가격 스케일, 실제 청구액
+
+## 부록 D. 원 논문 투자 시뮬레이션 설정과 한국 적용
+
+출처: Kronos 논문(arXiv 2508.02739) §4.2.3 "Investment Simulation", 부록 D.3.3, 표 6 "Inference hyperparameters for downstream tasks"; 공식 레포 `finetune/config.py`, `finetune/qlib_test.py` (2026-10-03 확인). 논문 본문과 레포가 다른 항목은 둘 다 적고 어느 쪽을 쓰는지 표시했다.
+
+| 항목 | 논문 / 레포 | 이 프로젝트의 paper 프로필·TopK | 차이와 이유 |
+| --- | --- | --- | --- |
+| 시장·유니버스 | 중국 A주. CSI 300(대형주) 구성종목, CSI 800(중형 포함) 구성종목 | 결정 사항: (a) KOSPI 시총 상위 200 point-in-time ≈ CSI 300, (b) KOSPI+KOSDAQ 풀링 base ≈ CSI 800 | 한국에 같은 지수 구성종목 자료가 없어 시총 순위(point-in-time)로 근사 |
+| 기간 | 테스트는 사전학습 종료(2024-06) 이후. 레포 backtest\_time\_range 2024-07-01 \~ 2025-06-05 | 2024-07-01 \~ 2025-06-30 | 같은 out-of-sample 논리 |
+| 입력 | 일봉, lookback 90 | lookback 90 | 동일 |
+| 예측 길이 | H = 10 | pred\_len 10 | 동일 |
+| 샘플링 | T 0.6, top-p 0.90, N 10 (표 6). 레포 config는 inference\_sample\_count 5 | T 0.6, top\_p 0.9, sample\_count 10 | 논문 표 6을 따른다 |
+| 시그널 | R\_{t→t+H} = (1/H Σ\_{i=1..H} p̂\_{t+i} − p\_t) / p\_t, 종가 예측 사용. 레포는 'mean' 시그널 = 스텝 평균 − 마지막 종가 (샘플은 predictor가 평균) | exp\_ret\_mean = 샘플·스텝 평균 pred\_close / last\_close − 1 | 동일. 원시 샘플을 저장하므로 샘플 평균을 C에서 한다 |
+| 순위·선택 | 매일 순위. Top-k 동일가중 | 매일 순위(schedule daily), 신규 매수 1/k | 동일 |
+| k, n | CSI 300: k 50, n 5. CSI 800: k 200, n 10. 레포 n\_symbol\_hold 50, n\_symbol\_drop 5 | 결정 사항. (a)면 k 50·n 5, (b)면 k 200·n 10 | 유니버스 크기 비율을 맞춘다 |
+| 최소 보유 | 5일 (레포 hold\_thresh 5) | hold\_min\_days 5 | 동일 |
+| 교체 규칙 | Qlib TopkDropoutStrategy: 보유 + 미보유 상위 n 합집합의 하위 n개 매도(bottom), 미보유 상위 매수(top) | Stage 6 작업 1의 규칙 | 동일. 보유 종목 비중은 보류(NaN)로 표현 |
+| 매수 금액 | Qlib: 매도 대금 + 현금을 매수 종목 수로 나눠 전부 배분 | 신규 매수 1/k 고정, 가용 비중 부족 시 비례 축소 | **차이**. drift로 남는 현금이 조금 생길 수 있다. 비중 파일 규약을 단순하게 유지하기 위함 |
+| 체결 | 다음날 시가 (레포 deal\_price open) | 다음 거래일 시가 | 동일 |
+| 비용 | 본문 "거래당 0.15%". 레포 qlib open\_cost 0.1%, close\_cost 0.15%, min\_cost 5 | 기본 kr(수수료 0.015% + 슬리피지 5bp + 거래세 0.18/0.15%). `--costs paper`로 매수 0.10%·매도 0.15% 시나리오도 돌린다 | 한국 실제 비용이 주 결과, 논문 비용은 민감도 |
+| 가격제한 | 레포 limit\_threshold 0.095 (A주 ±10%) | v2 price\_limit\_pct (한국 ±30%) | 시장 차이. v1에는 없음 |
+| 벤치마크 | CSI 300 지수 (레포 SH000300) | 결정 사항: 코스피 지수 / 코스닥 지수 / 유니버스 EqualWeight | — |
+| 지표 | AER(연율화 초과수익), IR. 레포는 excess\_return\_with/without\_cost | AER, IR을 portfolio\_metrics에 같은 이름으로 넣고 비용 전후 둘 다 | 동일 |
+| 모델 | Kronos-base(및 small, mini) zero-shot | Kronos-base + Kronos-Tokenizer-base zero-shot | 동일 |
+
+**해석 시 유의**: 논문 결과(그림 4(e), 그림 9)는 누적수익 곡선과 AER·IR 비교이며 본문에 수치 표가 없다. 재현의 목적은 수치 일치가 아니라 "같은 설정을 다른 시장에 적용했을 때의 상대 성과(벤치마크 대비, naive 대조군 대비)"를 보는 것이다. 유니버스 근사(시총 순위)와 매수 금액 규칙 차이는 결과에 영향을 줄 수 있으므로 보고서에 항상 함께 적는다.

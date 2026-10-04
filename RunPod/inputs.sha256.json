@@ -1,0 +1,22 @@
+{
+  "n_files": 4,
+  "total_bytes": 45266382,
+  "files": {
+    "data/raw/kosdaq/prices.parquet": {
+      "bytes": 29537174,
+      "sha256": "5f748274c05aa3052ca35af65669588b3f293f5c63f9674cbf011abdad91564c"
+    },
+    "data/raw/kospi/prices.parquet": {
+      "bytes": 15505508,
+      "sha256": "2326e41f57a05dd349b06a35218a048edcfe43cf65cf25a66ec43cd344ab31ce"
+    },
+    "data/universe/constituents_kosdaq_liq5.parquet": {
+      "bytes": 167920,
+      "sha256": "f443449653280d94241214c8819a3b63401a41b350dcdcf2e29ecd5a5b6e4b8a"
+    },
+    "data/universe/constituents_kospi_liq5.parquet": {
+      "bytes": 55780,
+      "sha256": "504fb4c48f650ddad7bc4695e42e37d20905855d2babfbf855c433a26c853afd"
+    }
+  }
+}

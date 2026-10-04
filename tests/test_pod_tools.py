@@ -1,16 +1,18 @@
-"""Appendix C-1: pod bundle, prediction checksums, environment info, per-profile sample selection."""
+"""Appendix C-1: pod inputs, run structure check, prediction checksums, results-branch flow, environment info, per-profile sample selection."""
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
-import tarfile
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from B_model_infer import checksum, pod_bundle
+from B_model_infer import checksum, pod_inputs, verify_run
 from B_model_infer.env_info import collect_env
 from C_signal.aggregate import select_samples
 from common.config import cfg_override, load_config
@@ -23,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture()
 def repo(cfg, tmp_path):
-    """A small git repo with synthetic data/raw + data/universe (base and liq5 variants) and the project files the bundle needs."""
+    """Synthetic data/raw + data/universe (base and liq5 variants) under a temp root, plus data that must never be an input."""
     root = tmp_path / "repo"
     root.mkdir()
     c = cfg_override(cfg, {"universe.indices": ["kospi200"], "universe.markets": {"kospi200": "KOSPI"}, "data.index_tickers": {}})
@@ -31,70 +33,110 @@ def repo(cfg, tmp_path):
     paths = Paths(c, root)
     base = paths.constituents_file("kospi200", "base")
     pd.read_parquet(base).to_parquet(paths.constituents_file("kospi200", "liq5"), index=False)
-    (root / "configs").mkdir()
-    import yaml
-    (root / "configs/base.yaml").write_text(yaml.safe_dump(c, allow_unicode=True))
-    (root / "requirements.txt").write_text("numpy==1\n")
-    (root / "requirements-infer.txt").write_text("-r requirements.txt\ntorch==9.9\n")
-    (root / "B_model_infer").mkdir()
-    (root / "B_model_infer/__init__.py").write_text("")
-    (root / "B_model_infer/pod").mkdir()
-    (root / "B_model_infer/pod/setup_pod.sh").write_text("#!/bin/bash\n")
     (root / "data/krx_raw/2026-09-28/stk").mkdir(parents=True)
-    (root / "data/krx_raw/2026-09-28/stk/20240102.json").write_text("[]")          # must never be packed
-    (root / ".gitignore").write_text("data/raw/*\ndata/universe/*\ndata/krx_raw/*\n")
-    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"], cwd=root, check=True)
-    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init"], cwd=root, check=True)
+    (root / "data/krx_raw/2026-09-28/stk/20240102.json").write_text("[]")
     return c, root, paths
 
 
-def test_pack_contains_only_allowed_files_and_verify_detects_tampering(repo, tmp_path):
+def test_pod_inputs_list_only_allowed_files_and_verify_detects_tampering(repo, tmp_path):
     c, root, paths = repo
-    out = pod_bundle.pack(c, "run_x", "base", root, log=lambda *_: None)
-    assert out == paths.bundle_path("run_x") and out.exists()
-    with tarfile.open(out) as tf:
-        names = [m.name for m in tf.getmembers() if m.isfile()]
-    assert all(n.startswith("repo/") for n in names)
-    assert not any("krx_raw" in n for n in names)
-    assert "repo/data/raw/kospi200/prices.parquet" in names and "repo/data/universe/constituents_kospi200_liq5.parquet" in names
-    assert "repo/data/universe/constituents_kospi200.parquet" not in names        # only the profile's variant
-    assert "repo/inputs.sha256.json" in names and "repo/configs/base.yaml" in names and "repo/requirements-infer.txt" in names
-    allowed = lambda n: n.startswith(("repo/B_model_infer/", "repo/configs/", "repo/data/raw/", "repo/data/universe/")) or n in (
-        "repo/inputs.sha256.json", "repo/requirements.txt", "repo/requirements-infer.txt", "repo/.gitignore")
-    assert all(allowed(n) for n in names), [n for n in names if not allowed(n)]
-    # unpack, verify ok, flip one byte -> verify fails; extra parquet -> fails
-    dest = tmp_path / "unpacked"
-    with tarfile.open(out) as tf:
-        tf.extractall(dest)
-    bdir = dest / "repo"
-    assert pod_bundle.verify(bdir, log=lambda *_: None) == 0
-    f = bdir / "data/raw/kospi200/prices.parquet"
+    rels = pod_inputs.input_files(c, paths)
+    assert rels == ["data/raw/kospi200/prices.parquet", "data/universe/constituents_kospi200_liq5.parquet"]   # only the profiles' variant, no krx_raw
+    assert pod_inputs.verify(c, root, log=lambda *_: None) == 1                    # no list yet
+    out = pod_inputs.write(c, root, log=lambda *_: None)
+    assert out == paths.pod_inputs_file() == root / "RunPod/inputs.sha256.json"
+    doc = json.loads(out.read_text())
+    assert sorted(doc["files"]) == rels and doc["n_files"] == 2
+    assert pod_inputs.verify(c, root, log=lambda *_: None) == 0
+    # the pod checks an upload directory against the committed list: missing -> fail, copied -> ok, one flipped byte -> fail
+    src = tmp_path / "inputs"
+    assert pod_inputs.verify(c, root, src=src, log=lambda *_: None) == 1
+    for rel in rels:
+        (src / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / rel, src / rel)
+    assert pod_inputs.verify(c, root, src=src, log=lambda *_: None) == 0
+    f = src / rels[0]
     b = bytearray(f.read_bytes()); b[10] ^= 1; f.write_bytes(bytes(b))
-    assert pod_bundle.verify(bdir, log=lambda *_: None) == 1
-    doc = json.loads((bdir / "inputs.sha256.json").read_text())
-    assert doc["code_commit"] and doc["git_dirty"] is False and doc["profile"] == "base" and doc["n_files"] == len(names) - 1   # inputs.sha256.json lists every other file
+    assert pod_inputs.verify(c, root, src=src, log=lambda *_: None) == 1
+    # a profile that asks for another variant makes the committed list stale
+    c2 = cfg_override(c, {"infer.profiles.paper.universe_variant": "base"})
+    assert pod_inputs.verify(c2, root, log=lambda *_: None) == 1
 
 
-def test_pack_refuses_a_dirty_tree_unless_allowed(repo):
-    c, root, paths = repo
-    (root / "requirements.txt").write_text("numpy==2\n")
-    with pytest.raises(RuntimeError, match="modified"):
-        pod_bundle.pack(c, "run_y", "base", root, log=lambda *_: None)
-    out = pod_bundle.pack(c, "run_y", "base", root, allow_dirty=True, log=lambda *_: None)
-    with tarfile.open(out) as tf:
-        doc = json.loads(tf.extractfile("repo/inputs.sha256.json").read())
-    assert doc["git_dirty"] is True and doc["dirty_files"]
+def _write_run(paths, run_id, dates, horizon=3):
+    run_dir = paths.predictions_dir(run_id)
+    run_dir.mkdir(parents=True)
+    rng = np.random.default_rng(0)
+    for d in dates:
+        df = predictions_from_array(d, ["a", "b"], rng.lognormal(0, 0.01, (2, 2, horizon, 5)) * 100)
+        df.to_parquet(paths.prediction_file(run_id, d), index=False)
+
+
+def test_verify_run_checks_count_and_schema(cfg, tmp_path):
+    paths = Paths(cfg, tmp_path)
+    _write_run(paths, "r1", ("2024-07-01", "2024-07-08"))
+    manifest = {"n_rebalance_dates": 3, "pred_len": 3,
+                "skipped_by_date": {"2024-07-01": {"n_pred": 2, "skip_reasons": {"nan_in_window": 1}}, "2024-07-08": {"n_pred": 2, "skip_reasons": {}},
+                                    "2024-07-15": {"n_pred": 0, "skipped": {}}}}
+    paths.manifest_file("r1").write_text(json.dumps(manifest))
+    assert verify_run.verify(paths, "r1", log=lambda *_: None) == 0               # the empty date has no file
+    paths.manifest_file("r1").write_text(json.dumps({**manifest, "pred_len": 5}))
+    assert verify_run.verify(paths, "r1", log=lambda *_: None) == 1               # horizon mismatch
+    paths.manifest_file("r1").write_text(json.dumps(manifest))
+    paths.prediction_file("r1", "2024-07-08").unlink()
+    assert verify_run.verify(paths, "r1", log=lambda *_: None) == 1               # a date is missing
+    assert verify_run.verify(paths, "nope", log=lambda *_: None) == 1
+
+
+def _git(cwd, *args):
+    return subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout
+
+
+def test_results_branch_carries_metadata_only_and_merges_into_main(cfg, tmp_path):
+    """RunPod/push_meta.sh (pod) -> RunPod/local.sh merge (local) against a bare remote: parquet never reaches git."""
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(remote)], check=True)
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    for d in ("common", "B_model_infer", "configs", "RunPod"):
+        shutil.copytree(ROOT / d, seed / d, ignore=shutil.ignore_patterns("__pycache__", ".env"))
+    (seed / ".gitignore").write_text("data/B_predictions/\n__pycache__/\n")
+    _git(seed, "init", "-q", "-b", "main"); _git(seed, "add", "-A"); _git(seed, "commit", "-q", "-m", "code")
+    _git(seed, "remote", "add", "origin", str(remote)); _git(seed, "push", "-q", "origin", "main")
+    pod, local = tmp_path / "pod", tmp_path / "local"
+    for clone in (pod, local):
+        subprocess.run(["git", "clone", "-q", str(remote), str(clone)], check=True)
+        _git(clone, "config", "user.email", "t@t"); _git(clone, "config", "user.name", "t")
+    env = {**os.environ, "PUSH_URL": str(remote), "PUSH_RETRY_SLEEP": "0", "PYTHON": sys.executable, "GITHUB_TOKEN": ""}
+
+    c = load_config(pod / "configs/base.yaml")
+    ppaths = Paths(c, pod)
+    _write_run(ppaths, "r1", ("2024-07-01", "2024-07-08"))
+    ppaths.manifest_file("r1").write_text("{}")
+    (ppaths.predictions_dir("r1") / "cloud_run.json").write_text(json.dumps({"status": "ok", "pod_id": "p1"}))
+    checksum.write(ppaths, "r1", pod, log=lambda *_: None)
+    run_dir = str(ppaths.predictions_dir("r1"))
+    assert subprocess.run(["bash", "RunPod/push_meta.sh", run_dir], cwd=pod, env=env).returncode == 1      # on main: refused
+    _git(pod, "checkout", "-q", "-B", "results/r1")
+    assert subprocess.run(["bash", "RunPod/push_meta.sh", run_dir], cwd=pod, env=env).returncode == 0
+    pushed = _git(remote, "ls-tree", "-r", "--name-only", "results/r1", "data/").split()
+    assert sorted(Path(p).name for p in pushed) == ["checksums.json", "cloud_run.json", "manifest.json"]
+
+    # local: merge is refused until the fetched copy verifies; the rsync step is replaced by a plain copy here
+    lpaths = Paths(c, local)
+    assert subprocess.run(["bash", "RunPod/local.sh", "merge", "r1"], cwd=local, env=env, capture_output=True).returncode == 1
+    shutil.copytree(ppaths.predictions_dir("r1"), lpaths.predictions_dir("r1"))
+    r = subprocess.run(["bash", "RunPod/local.sh", "merge", "r1"], cwd=local, env=env, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    tracked = _git(remote, "ls-tree", "-r", "--name-only", "main", "data/").split()
+    assert sorted(Path(p).name for p in tracked) == ["checksums.json", "cloud_run.json", "manifest.json"]
+    assert "results/r1" not in _git(remote, "branch", "--list")
+    assert len(list(lpaths.predictions_dir("r1").glob("as_of=*.parquet"))) == 2    # the local predictions survive the merge
 
 
 def test_checksum_write_verify_and_failures(cfg, tmp_path):
     paths = Paths(cfg, tmp_path)
-    run_dir = paths.predictions_dir("r1")
-    run_dir.mkdir(parents=True)
-    rng = np.random.default_rng(0)
-    for d in ("2024-07-01", "2024-07-08"):
-        df = predictions_from_array(d, ["a", "b"], rng.lognormal(0, 0.01, (2, 2, 3, 5)) * 100)
-        df.to_parquet(paths.prediction_file("r1", d), index=False)
+    _write_run(paths, "r1", ("2024-07-01", "2024-07-08"))
     paths.manifest_file("r1").write_text("{}")
     checksum.write(paths, "r1", tmp_path, log=lambda *_: None)
     doc = json.loads(paths.checksums_file("r1").read_text())

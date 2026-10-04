@@ -19,11 +19,12 @@ Kronos-base(https://github.com/shiyu-coder/Kronos)의 zero-shot 예측으로 KOS
 configs/base.yaml      모든 설정 (spec.md "공통 설정" 뼈대; [사용자] 값은 null로 두고 사용자가 채운다)
 common/                config.py paths.py schema.py lookahead.py meta.py data.py universe.py synthetic.py
 A_data_prepare/        KRX Open API -> data/raw, data/universe (docs/data_pipeline.md); run_prepare.py -> data/A_prepared/ (Stage 1)
-B_model_infer/         Kronos 추론 (RunPod). build_batch.py backends.py run_inference.py make_fake_predictions.py -> data/B_predictions/{run_id}/
+B_model_infer/         Kronos 추론 (RunPod). build_batch.py backends.py run_inference.py make_fake_predictions.py pod_inputs.py verify_run.py checksum.py env_info.py -> data/B_predictions/{run_id}/
 C_signal/              aggregate.py baseline_features.py run_signal.py -> data/C_signals/{run_id}/signals.parquet (Stage 2)
 D_strategy/            base.py registry.py equal_weight.py momentum20_topk.py random_topk.py run_strategy.py -> data/D_weights/{run_id}/{strategy}.parquet (Stage 3)
 E_backtest/            costs.py engine_v1_weights.py run_backtest.py -> data/E_backtest/{run_id}/v1/{strategy}[@no_costs|@paper_costs]/ (Stage 4)
 F_evaluate/            labels.py signal_metrics.py portfolio_metrics.py significance.py run_evaluate.py -> data/F_metrics/{run_id}/ (Stage 5)
+RunPod/                Pod 운영 스크립트와 절차서 (README.md local.sh runpod.sh setup_runpod.sh push_meta.sh inputs.sha256.json)
 G_report/              Stage 8에서 채움 (지금은 빈 패키지)
 scripts/probes/        [확인 필요] 항목을 실제 데이터로 확인하는 1회성 스크립트
 data/                  krx_raw/<snapshot>/ raw/ universe/ MANIFEST.json (수집 산출물, 유지) + A_prepared/ B_predictions/ ... (단계 산출물)
@@ -63,12 +64,14 @@ python -m A_data_prepare.run_prepare                # Stage 1: data/raw + data/u
 ## 추론 (RunPod GPU, docs/spec.md 부록 C·D)
 
 ```bash
-# 로컬 (C-1): 번들 만들기 -> Pod로 올리기 -> Pod에서 setup_pod.sh -> 실행 -> 체크섬 -> 로컬 회수 검증
-python -m B_model_infer.pod_bundle pack --run-id kronos_base_v1            # data/pod_bundles/kronos_base_v1.tar.gz (코드 git archive + prices + liq5 유니버스 + inputs.sha256.json)
-bash B_model_infer/pod/setup_pod.sh /workspace/kronos_base_v1.tar.gz /workspace   # Pod: 풀기, verify, torch 버전 검사, pip, Kronos 코드 체크아웃, 모델 다운로드, env 출력
-python -m B_model_infer.run_inference --backend kronos --run-id kronos_base_v1 --root /workspace/repo   # Pod, tmux 안에서
-python -m B_model_infer.checksum write  --run-id kronos_base_v1            # Pod
-python -m B_model_infer.checksum verify --run-id kronos_base_v1            # 로컬, 내려받은 뒤
+# 절차서: RunPod/README.md. 코드는 git, 입력·예측은 SSH, 메타데이터는 results/<RUN_ID> 브랜치로 움직인다 (D-18)
+bash RunPod/local.sh push-code "메시지"                                    # 로컬: main 커밋·push
+bash RunPod/local.sh upload <host> <port>                                  # 로컬: prices + liq5 유니버스 -> pod /workspace/inputs (RunPod/inputs.sha256.json과 대조)
+RUN_ID=kronos_base_v1 bash RunPod/runpod.sh                                # Pod, tmux 안에서: 설치 -> 입력 대조 -> GPU 스모크 -> 추론 -> verify_run -> checksum write -> 메타데이터 push
+bash RunPod/local.sh fetch kronos_base_v1                                  # 로컬: rsync + checksum verify
+bash RunPod/local.sh merge kronos_base_v1                                  # 로컬: manifest.json, checksums.json 등을 main에 병합
+bash RunPod/local.sh terminate kronos_base_v1                              # 로컬: verify 통과 후 Pod 종료
+python -m B_model_infer.pod_inputs write                                   # 입력 데이터가 바뀌었을 때 RunPod/inputs.sha256.json 갱신
 # 로컬 CPU 스모크 (Kronos 코드 ./Kronos, torch 필요: pip install -r requirements-infer.txt)
 python -m B_model_infer.run_inference --backend kronos --run-id smoke_cpu --device cpu --batch-size 4 --sample-count 2 --max-tickers 5 --allow-unpinned --start 2024-07-01 --end 2024-07-01
 python -m B_model_infer.run_inference --run-id check --backend dummy --start 2024-07-01 --end 2024-07-01   # 배선 확인 (torch 불필요)

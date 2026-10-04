@@ -1,4 +1,4 @@
-# RunPod inference environment (appendix C-1, D-8). The Pod template must ship this torch build; setup_pod.sh checks it.
+# RunPod inference environment (appendix C-1, D-8). RunPod/setup_runpod.sh installs it into /workspace/venv (the image's torch is not used) and checks the torch pin.
 # Versions = what the local CPU smoke test (macOS, Python 3.12) ran with on 2026-10-03.
 -r requirements.txt
 torch==2.14.1

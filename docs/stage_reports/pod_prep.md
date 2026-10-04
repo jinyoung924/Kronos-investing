@@ -75,3 +75,31 @@ pytest tests/test_pod_tools.py                               5 passed
 1. **C-2 3번 Pod probe 뒤 기입할 값**: `model.batch_size`, 날짜당 소요 시간, 결정성 여부(같은 날짜 두 번 → 비트 동일?), 분할 이력 종목의 예측 스케일. probe run_id는 `probe_<날짜>`로 본 run_id와 분리.
 2. **backtest.delist_policy**: 여전히 null. 이번 재생성 실행에도 `--set backtest.delist_policy=last_close`를 썼다.
 3. 로컬에 설치한 torch(약 100 MB)와 ./Kronos 클론은 gitignore 대상이며 requirements.txt(백테스트용)에는 들어가지 않는다(D-8).
+
+## 후속: RunPod/ 방식으로 전환 (2026-10-04, D-18)
+
+사용자 지시로 번들 방식을 MMDL-MMMU `cloud/` 방식에 맞춰 바꿨다. Pod 생성·업로드는 하지 않았다. spec 부록 C(원칙 3·6·7, C-1 작업 3~6, C-2)를 함께 고쳤다.
+
+| 파일 | 설명 |
+| --- | --- |
+| RunPod/README.md | 절차서: 루프, 배포 사양, 환경변수, knob, 브랜치 규칙, 문제 해결, 템플릿 값 |
+| RunPod/runpod.sh | Pod 진입점: 결과 브랜치 → push 사전 검사 → setup → cloud\_run.json → 입력 대조 → GPU 스모크 → 추론 → verify\_run → checksum write → 메타데이터 push. Pod를 종료하지 않는다 |
+| RunPod/setup\_runpod.sh | /workspace/venv(Python 3.12) + requirements-infer.txt, Kronos 코드 체크아웃, 모델 다운로드, torch 핀·CUDA 확인 |
+| RunPod/push\_meta.sh | `results/*` 브랜치에서 메타데이터 네 파일만 커밋·push |
+| RunPod/local.sh | push-code, upload, fetch(rsync + checksum verify), same, merge, drop, terminate, ssh, list, status |
+| RunPod/inputs.sha256.json | 입력 4개(prices 2, liq5 constituents 2), 45,266,382 bytes |
+| B\_model\_infer/pod\_inputs.py | 입력 목록 write·list·verify (pod\_bundle.py 대체) |
+| B\_model\_infer/verify\_run.py | 파일 수, validate\_predictions, horizon\_step 1..pred\_len, skipped 사유 합계 |
+| common/paths.py, configs/base.yaml | `bundles_dir`·`bundle_path` 제거, `pod_inputs_file`(`data.pod_inputs_file`) 추가 |
+| tests/test\_pod\_tools.py | 번들 테스트 2개를 pod\_inputs·verify\_run·결과 브랜치 흐름 테스트 3개로 교체 |
+
+실행 결과: `pytest` 전체 통과. `pod_inputs write` → `verify` OK. `verify_run --run-id fake_dummy_base` → 49 파일 OK. 결과 브랜치 흐름(push\_meta.sh → local.sh merge)은 로컬 bare 저장소로 테스트했다(parquet이 git에 들어가지 않음, verify 전 merge 거부).
+
+**검증하지 못한 것**: runpod.sh·setup\_runpod.sh의 Pod 실행, local.sh의 upload·fetch·terminate(실제 SSH·RunPod API)는 Pod가 없어 돌리지 못했다. 문법 검사(`bash -n`)만 했다. torch 2.14.1 PyPI 휠과 호스트 드라이버의 조합도 첫 Pod에서 확인해야 한다(README §4).
+
+**사용자 확인 요청**
+
+1. 삭제(샌드박스가 막음): `git rm B_model_infer/pod_bundle.py B_model_infer/pod/setup_pod.sh`, `rm -r data/pod_bundles`.
+2. `GITHUB_TOKEN`의 Repository access에 `jinyoung924/Kronos-investing`(Contents: Read and write)이 있는지.
+3. 핀 값(`model.revision`, `model.tokenizer_revision`, `model.kronos_repo_commit`)은 여전히 null이다. 기입 전에는 setup\_runpod.sh가 멈춘다.
+4. 로컬 `RunPod/.env`에 `RUNPOD_USER_API_KEY`, `RUNPOD_SSH_KEY`(PUBLIC\_KEY와 짝인 개인키 경로)를 둔다.
