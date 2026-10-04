@@ -25,7 +25,8 @@ D_strategy/            base.py registry.py equal_weight.py momentum20_topk.py ra
 E_backtest/            costs.py constraints.py engine_v1_weights.py engine_v2_orders.py run_backtest.py -> data/E_backtest/{run_id}/v1/{strategy}[@no_costs|@paper_costs]/ (Stage 4)
 F_evaluate/            labels.py signal_metrics.py portfolio_metrics.py significance.py run_evaluate.py -> data/F_metrics/{run_id}/ (Stage 5)
 RunPod/                Pod 운영 스크립트와 절차서 (README.md local.sh runpod.sh setup_runpod.sh push_meta.sh inputs.sha256.json)
-G_report/              Stage 8에서 채움 (지금은 빈 패키지)
+G_report/              compare.py shortfall.py run_report.py -> reports/{run_id}/compare.md, shortfall.md, figures/ (Stage 8)
+scripts/run_pipeline.py  C -> G 단계 CLI를 순서대로 호출
 scripts/probes/        [확인 필요] 항목을 실제 데이터로 확인하는 1회성 스크립트
 data/                  krx_raw/<snapshot>/ raw/ universe/ MANIFEST.json (수집 산출물, 유지) + A_prepared/ B_predictions/ ... (단계 산출물)
 tests/                 test_common.py (Stage 0), test_data_prepare.py, test_no_lookahead.py
@@ -107,6 +108,18 @@ python scripts/probes/stage7_figures.py                                         
 ```
 
 v2는 `backtest.init_cash`가 필요하고, price_limit는 `backtest.v2.price_limit_pct`·`tick_table`, liquidity는 `max_participation`이 필요하다(null이면 오류). 값이 정해지기 전에는 `--set`으로 준다(docs/stage_reports/stage7.md).
+
+## 리포트와 파이프라인 (Stage 8)
+
+```bash
+# C -> D -> E -> F -> G를 한 번에. 실패하면 단계 이름을 출력하고 멈춘다. --from / --to 로 구간 지정, --set 은 D·E·F·G에 전달
+python scripts/run_pipeline.py --run-id kronos_base_v1 --strategy equal_weight,conf_weighted,vol_target --engine v2 --costs paper --set ...
+python -m F_evaluate.run_evaluate --run-id kronos_base_v1 --engine v2      # v2 시나리오 채점 -> shortfall_metrics.csv
+python -m G_report.run_report --run-id kronos_base_v1,kronos_paper_v1      # reports/{첫 run_id}/compare.md, shortfall.md, figures/
+python -m G_report.run_report                                              # report.compare_run_ids 사용 (결과 없는 run_id는 건너뛰고 리포트에 적는다)
+```
+
+리포트의 수치는 모두 data/F_metrics에서 읽는다(G_report는 지표를 계산하지 않는다). 아직 정해지지 않은 사용자 값은 `--set`으로 준다(docs/stage_reports/stage8.md 질문 2).
 
 ## 가짜 예측과 시그널 (로컬, Kronos 없이)
 

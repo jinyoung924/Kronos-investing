@@ -14,6 +14,8 @@ Strategies: every result folder under data/E_backtest/{run_id}/{engine}/ (folder
 Outputs data/F_metrics/{run_id}/: signal_metrics.json, ic_timeseries.csv, quantile_returns.csv, portfolio_metrics.csv
          (engine x strategy x metric), portfolio_by_market.csv, trials.csv (per run), meta.json; and the global ledger
          data/F_metrics/trials.csv (D-17: Deflated Sharpe counts the real trials of the same profile).
+--engine v2 scores the constraint scenarios of engine v2 (data/E_backtest/{run_id}/v2/{strategy}/{scenario}) into
+         shortfall_metrics.csv, with the v1 cost-free result of each strategy as the first row; portfolio_metrics.csv is untouched.
 The only module of the stage that touches files. Imports only `common`.
 """
 from __future__ import annotations
@@ -234,6 +236,43 @@ def evaluate_portfolios(paths: Paths, run_id: str, engine: str, folders: list[st
     return pd.DataFrame(rows), trials, pd.DataFrame(mrows)
 
 
+def scenario_folders(paths: Paths, run_id: str) -> list[tuple[str, str]]:
+    """(strategy, scenario) pairs with an engine v2 result (data/E_backtest/{run_id}/v2/{strategy}/{scenario}/nav.csv)."""
+    base = paths.backtest_dir(run_id, "v2", "x").parent
+    if not base.exists():
+        return []
+    return sorted((s.name, d.name) for s in base.iterdir() if s.is_dir() for d in s.iterdir() if (d / "nav.csv").exists())
+
+
+def evaluate_scenarios(paths: Paths, run_id: str, pairs: list[tuple[str, str]], cfg: dict, log=print) -> pd.DataFrame:
+    """Score engine v2 constraint scenarios (Stage 7) for the shortfall report: one row per (strategy, scenario) plus, per
+    strategy, the v1 cost-free result as the starting point (engine v1, scenario `v1@no_costs`) when it exists."""
+    ppy = int(require(cfg, "evaluate.periods_per_year"))
+    rf = float(cfg_get(cfg, "evaluate.risk_free", 0.0) or 0.0)
+    rows = []
+    for strat in sorted({s for s, _ in pairs}):
+        v1_dir = paths.backtest_dir(run_id, "v1", strat + "@no_costs")
+        if (v1_dir / "nav.csv").exists():
+            nav = validate_nav(pd.read_csv(v1_dir / "nav.csv", parse_dates=["date"])).set_index("date")
+            rows.append({"run_id": run_id, "engine": "v1", "strategy": strat, "scenario": "v1@no_costs", "n_constraints": -1, "constraints": "",
+                         "cost_scenario": "none", **performance_summary(nav["ret"].iloc[1:], nav["nav"], rf, ppy), "total_cost": float(nav["cost"].sum())})
+    for strat, scen in pairs:
+        d = paths.backtest_scenario_dir(run_id, strat, scen)
+        nav = validate_nav(pd.read_csv(d / "nav.csv", parse_dates=["date"])).set_index("date")
+        meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+        perf = performance_summary(nav["ret"].iloc[1:], nav["nav"], rf, ppy)
+        cons = list(meta.get("constraints") or [])
+        init_cash = float(meta.get("init_cash") or np.nan)
+        rows.append({"run_id": run_id, "engine": "v2", "strategy": strat, "scenario": scen, "n_constraints": len(cons), "constraints": "+".join(cons),
+                     "cost_scenario": (meta.get("costs") or {}).get("scenario"), **perf, "total_cost": float(nav["cost"].sum()),
+                     "min_cash_share": float(meta["min_cash"]) / init_cash if init_cash else np.nan, "init_cash": init_cash,
+                     "mean_holdings": meta.get("mean_holdings"), "n_orders": meta.get("n_orders"),
+                     **{f"n_{k}": int(v) for k, v in (meta.get("order_status_counts") or {}).items()}, "config_hash": meta.get("config_hash")})
+        log(f"{run_id}/v2/{strat}/{scen}: CAGR {perf['cagr']:+.2%} Sharpe {perf['sharpe']:+.2f} MDD {perf['max_drawdown']:+.2%}")
+    out = pd.DataFrame(rows)
+    return out.sort_values(["strategy", "n_constraints", "scenario"]).reset_index(drop=True) if len(out) else out
+
+
 def n_trials_for(ledger: pd.DataFrame, run_id: str, profile: str | None, fake: bool, scope: str = "profile") -> int:
     """D-17: a fake run_id counts only its own trials; a real run_id counts every real trial of the same profile
     (scope `profile`) or every real trial (scope `all`)."""
@@ -291,6 +330,29 @@ def run_evaluate(cfg: dict, run_id: str, strategy_spec: str, engine: str, root: 
         f"exp_ret_mean {sig_metrics['ic']['exp_ret_mean']['mean']:+.3f}; Q{int(require(cfg, 'evaluate.quantiles'))}-Q1 spread {sig_metrics['quantiles']['exp_ret']['mean_spread']:+.4f}; "
         f"hit rate {sig_metrics['hit_rate']['hit_rate']:.3f}; naive mom20 {sig_metrics['naive'].get('mom20', {}).get('mean', float('nan')):+.3f}")
 
+    out_dir = paths.metrics_dir(run_id)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if engine == "v2":
+        # constraint scenarios are not strategy-selection trials: they go to shortfall_metrics.csv, not to trials.csv
+        pairs = scenario_folders(paths, run_id)
+        if strategy_spec.strip() != "all":
+            want = {x.strip() for x in strategy_spec.split(",") if x.strip()}
+            missing = sorted(want - {p[0] for p in pairs})
+            if missing:
+                raise FileNotFoundError(f"no v2 results for {missing} under run_id {run_id}")
+            pairs = [p for p in pairs if p[0] in want]
+        sf = evaluate_scenarios(paths, run_id, pairs, cfg, log)
+        sf_path = out_dir / "shortfall_metrics.csv"
+        if sf_path.exists() and len(sf):                 # keep the rows of strategies that were not rescored now
+            old = pd.read_csv(sf_path)
+            sf = pd.concat([old[~old["strategy"].isin(set(sf["strategy"]))], sf], ignore_index=True)
+        sf.to_csv(sf_path, index=False)
+        write_json_atomic(out_dir / "signal_metrics.json", sig_metrics)
+        ic_ts.to_csv(out_dir / "ic_timeseries.csv", index=False)
+        q_ts.to_csv(out_dir / "quantile_returns.csv", index=False)
+        log(f"wrote {sf_path}: {len(sf)} rows ({len(pairs)} v2 scenarios scored) ({round(time.time() - t0, 1)}s)")
+        return {"stage": STAGE, "run_id": run_id, "engine": engine, "n_scenarios": len(pairs)}
+
     folders = result_folders(paths, run_id, engine)
     if strategy_spec.strip() != "all":
         want = [s.strip() for s in strategy_spec.split(",") if s.strip()]
@@ -310,8 +372,6 @@ def run_evaluate(cfg: dict, run_id: str, strategy_spec: str, engine: str, root: 
     if not folders:
         log(f"{run_id}: no {engine} results to score (run E_backtest.run_backtest first)")
 
-    out_dir = paths.metrics_dir(run_id)
-    out_dir.mkdir(parents=True, exist_ok=True)
     write_json_atomic(out_dir / "signal_metrics.json", sig_metrics)
     ic_ts.to_csv(out_dir / "ic_timeseries.csv", index=False)
     q_ts.to_csv(out_dir / "quantile_returns.csv", index=False)
@@ -346,7 +406,7 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--run-id", required=True)
     p.add_argument("--strategy", default="all")
-    p.add_argument("--engine", default="v1")
+    p.add_argument("--engine", default="v1", choices=["v1", "v2"], help="v2 scores the constraint scenarios into shortfall_metrics.csv")
     p.add_argument("--config", default="configs/base.yaml")
     p.add_argument("--root", default=str(ROOT))
     p.add_argument("--set", action="append", default=[], metavar="KEY=VALUE")
