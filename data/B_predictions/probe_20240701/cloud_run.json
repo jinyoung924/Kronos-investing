@@ -1,0 +1,22 @@
+{
+  "sessions": [
+    {
+      "pod_id": "12cwi86z1h15xy",
+      "gpu": "NVIDIA GeForce RTX 4090, 24564 MiB, 580.159.04",
+      "code_commit": "2fcdc91eb5b4c00b3895bde0e30bc022f82aef24",
+      "started_utc": "2026-10-04T02:54:34+00:00"
+    }
+  ],
+  "run_id": "probe_20240701",
+  "results_branch": "results/probe_20240701",
+  "code_commit": "2fcdc91eb5b4c00b3895bde0e30bc022f82aef24",
+  "profile": null,
+  "run_cmd": "python -m B_model_infer.run_inference --backend kronos --run-id probe_20240701  --start 2024-07-01 --end 2024-07-01 --batch-size 256",
+  "pod_id": "12cwi86z1h15xy",
+  "gpu": "NVIDIA GeForce RTX 4090, 24564 MiB, 580.159.04",
+  "ssh_host": "213.173.102.179",
+  "ssh_port": "18919",
+  "repo_dir": "/workspace/Kronos-investing",
+  "pred_dir": "/workspace/Kronos-investing/data/B_predictions/probe_20240701",
+  "status": "running"
+}
