@@ -1,0 +1,951 @@
+{
+  "run_id": "kronos_base_v1",
+  "backend": "kronos",
+  "profile": "base",
+  "model": "NeoQuasar/Kronos-base",
+  "tokenizer": "NeoQuasar/Kronos-Tokenizer-base",
+  "hf_revision_requested": "2b554741eca47781b64468546e77fef3e85130e6",
+  "hf_revision_resolved": {
+    "model": "2b554741eca47781b64468546e77fef3e85130e6",
+    "tokenizer": "0e0117387f39004a9016484a186a908917e22426"
+  },
+  "lookback": 400,
+  "pred_len": 5,
+  "temperature": 1.0,
+  "top_p": 0.9,
+  "top_k": 0,
+  "sample_count": 20,
+  "universe": [
+    "kospi",
+    "kosdaq"
+  ],
+  "universe_variant": "liq5",
+  "backtest_universe_variant": "base",
+  "dtype": "float32",
+  "env": {
+    "gpu_name": "NVIDIA GeForce RTX 4090",
+    "gpu_count": 1,
+    "driver_version": "580.159.04",
+    "cuda_version": "13.0",
+    "torch_version": "2.14.1+cu130",
+    "python_version": "3.12.3",
+    "dtype": "float32",
+    "hostname": "1b6d7471c2b1",
+    "pod_id": "12cwi86z1h15xy",
+    "device": "cuda:0",
+    "platform": "Linux-6.8.0-124-generic-x86_64-with-glibc2.39"
+  },
+  "start": "2024-07-01",
+  "end": "2025-06-30",
+  "step": 5,
+  "n_rebalance_dates": 49,
+  "code_commit": "d4d9a86b34ae6c2ac00951d3cd7e4691d77cb879",
+  "max_tickers": null,
+  "smoke": false,
+  "started_at": "2026-10-04T03:43:44.134394+00:00",
+  "last_updated_at": "2026-10-04T09:25:37.219917+00:00",
+  "config": {
+    "project": {
+      "run_ids": {
+        "base": "kronos_base_v1",
+        "paper": "kronos_paper_v1"
+      },
+      "seed": 42
+    },
+    "period": {
+      "start": "2024-07-01",
+      "end": "2025-06-30"
+    },
+    "data": {
+      "markets": [
+        "KOSPI",
+        "KOSDAQ"
+      ],
+      "price_basis": "raw",
+      "index_tickers": {
+        "kospi": "KOSPI",
+        "kosdaq": "KOSDAQ"
+      },
+      "raw_dir": "data/raw",
+      "universe_dir": "data/universe",
+      "logs_dir": "logs",
+      "price_file": "prices.parquet",
+      "prepared_dir": "data/A_prepared",
+      "pod_inputs_file": "RunPod/inputs.sha256.json",
+      "predictions_dir": "data/B_predictions",
+      "signals_dir": "data/C_signals",
+      "weights_dir": "data/D_weights",
+      "backtest_dir": "data/E_backtest",
+      "metrics_dir": "data/F_metrics",
+      "reports_dir": "reports",
+      "ffill_limit": 5,
+      "max_daily_move": 0.35,
+      "delist_window_days": 14
+    },
+    "universe": {
+      "indices": [
+        "kospi",
+        "kosdaq"
+      ],
+      "markets": {
+        "kospi": "KOSPI",
+        "kosdaq": "KOSDAQ"
+      },
+      "variant": "base",
+      "top_n_mktcap": null,
+      "max_stale_days": 5,
+      "common_stock_only": true,
+      "exclude_name_patterns": [
+        "스팩"
+      ],
+      "exclude_sect_patterns": [
+        "SPAC"
+      ],
+      "min_history_rows": 400,
+      "liquidity_window": 20,
+      "min_avg_trdval": 1000000000,
+      "exclude_halted": true,
+      "universe_start_buffer_days": 30,
+      "variants": {
+        "base": {},
+        "liq5": {
+          "min_avg_trdval": 500000000
+        },
+        "clean": {
+          "exclude_sect_patterns": [
+            "SPAC",
+            "관리종목",
+            "투자주의환기"
+          ]
+        }
+      }
+    },
+    "krx": {
+      "fetch_start": "2022-10-01",
+      "fetch_end": "2025-07-15",
+      "markets": [
+        "KOSPI",
+        "KOSDAQ"
+      ],
+      "index_series": {
+        "kospi": {
+          "api": "kospi_dd_trd",
+          "name": "코스피",
+          "ticker": "KOSPI"
+        },
+        "kosdaq": {
+          "api": "kosdaq_dd_trd",
+          "name": "코스닥",
+          "ticker": "KOSDAQ"
+        }
+      },
+      "benchmark_etfs": [
+        "226490",
+        "229200"
+      ],
+      "min_interval_sec": 0.15,
+      "cache_dir": "data/krx_raw",
+      "snapshot": "2026-09-28"
+    },
+    "model": {
+      "name": "NeoQuasar/Kronos-base",
+      "tokenizer": "NeoQuasar/Kronos-Tokenizer-base",
+      "revision": "2b554741eca47781b64468546e77fef3e85130e6",
+      "tokenizer_revision": "0e0117387f39004a9016484a186a908917e22426",
+      "kronos_repo": "./Kronos",
+      "kronos_repo_commit": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
+      "dtype": "float32",
+      "top_k": 0,
+      "max_context": 512,
+      "batch_size": 256,
+      "device": "cuda:0"
+    },
+    "infer": {
+      "default_profile": "base",
+      "profiles": {
+        "base": {
+          "lookback": 400,
+          "pred_len": 5,
+          "step": 5,
+          "temperature": 1.0,
+          "top_p": 0.9,
+          "sample_count": 20,
+          "universe_variant": "liq5"
+        },
+        "paper": {
+          "lookback": 90,
+          "pred_len": 10,
+          "step": 1,
+          "temperature": 0.6,
+          "top_p": 0.9,
+          "sample_count": 10,
+          "universe_variant": "liq5"
+        }
+      }
+    },
+    "signal": {
+      "n_samples": {
+        "base": 20,
+        "paper": 10
+      },
+      "mom_window": 20,
+      "vol_window": 20,
+      "rev_window": 5
+    },
+    "strategies": {
+      "equal_weight": {
+        "profile": "base",
+        "schedule": "weekly"
+      },
+      "momentum20_topk": {
+        "profile": "base",
+        "schedule": "weekly",
+        "k": 50
+      },
+      "random_topk": {
+        "profile": "base",
+        "schedule": "weekly",
+        "k": 50
+      },
+      "topk": {
+        "profile": "paper",
+        "schedule": "daily",
+        "signal_col": "exp_ret_mean",
+        "k": 50,
+        "n_drop": 5,
+        "hold_min_days": 5
+      },
+      "conf_weighted": {
+        "profile": "base",
+        "schedule": "weekly",
+        "signal_col": "exp_ret",
+        "threshold": null
+      },
+      "vol_target": {
+        "profile": "base",
+        "schedule": "weekly",
+        "signal_col": "exp_ret",
+        "k": 50
+      }
+    },
+    "costs": {
+      "scenario": "paper",
+      "commission_buy": 0.00015,
+      "commission_sell": 0.00015,
+      "slippage_bps": 5,
+      "sell_tax_table": [],
+      "paper": {
+        "buy": 0.001,
+        "sell": 0.0015
+      }
+    },
+    "backtest": {
+      "init_cash": null,
+      "delist_policy": null,
+      "v2": {
+        "constraints": {
+          "costs": true,
+          "integer_shares": true,
+          "cash": true,
+          "price_limit": true,
+          "halt": true,
+          "liquidity": true
+        },
+        "price_limit_pct": null,
+        "tick_table": [],
+        "max_participation": null
+      }
+    },
+    "evaluate": {
+      "benchmark": "equal_weight",
+      "paper_benchmark": "KOSPI",
+      "reference_indices": [
+        "KOSPI",
+        "KOSDAQ"
+      ],
+      "by_market": true,
+      "dsr_scope": "profile",
+      "periods_per_year": 252,
+      "risk_free": 0.0,
+      "quantiles": 5,
+      "min_cross_section": 10,
+      "bootstrap": {
+        "n": 2000,
+        "block": 20
+      },
+      "regimes": {
+        "split": "half_year"
+      }
+    },
+    "report": {
+      "compare_run_ids": [
+        "kronos_base_v1",
+        "kronos_paper_v1"
+      ],
+      "shortfall_strategy": "topk",
+      "shortfall_order": [
+        "costs",
+        "integer_shares",
+        "cash",
+        "price_limit",
+        "halt",
+        "liquidity"
+      ]
+    }
+  },
+  "skipped_by_date": {
+    "2024-07-01": {
+      "n_pred": 1204,
+      "n_skipped": 76,
+      "skip_reasons": {
+        "nan_in_window": 76
+      }
+    },
+    "2024-07-08": {
+      "n_pred": 1189,
+      "n_skipped": 78,
+      "skip_reasons": {
+        "nan_in_window": 78
+      }
+    },
+    "2024-07-15": {
+      "n_pred": 1155,
+      "n_skipped": 74,
+      "skip_reasons": {
+        "nan_in_window": 74
+      }
+    },
+    "2024-07-22": {
+      "n_pred": 1145,
+      "n_skipped": 81,
+      "skip_reasons": {
+        "nan_in_window": 81
+      }
+    },
+    "2024-07-29": {
+      "n_pred": 1139,
+      "n_skipped": 82,
+      "skip_reasons": {
+        "nan_in_window": 82
+      }
+    },
+    "2024-08-05": {
+      "n_pred": 1176,
+      "n_skipped": 78,
+      "skip_reasons": {
+        "nan_in_window": 78
+      }
+    },
+    "2024-08-12": {
+      "n_pred": 1165,
+      "n_skipped": 77,
+      "skip_reasons": {
+        "nan_in_window": 77
+      }
+    },
+    "2024-08-20": {
+      "n_pred": 1164,
+      "n_skipped": 81,
+      "skip_reasons": {
+        "nan_in_window": 81
+      }
+    },
+    "2024-08-27": {
+      "n_pred": 1139,
+      "n_skipped": 84,
+      "skip_reasons": {
+        "nan_in_window": 84
+      }
+    },
+    "2024-09-03": {
+      "n_pred": 1083,
+      "n_skipped": 80,
+      "skip_reasons": {
+        "nan_in_window": 80
+      }
+    },
+    "2024-09-10": {
+      "n_pred": 1073,
+      "n_skipped": 75,
+      "skip_reasons": {
+        "nan_in_window": 75
+      }
+    },
+    "2024-09-20": {
+      "n_pred": 1047,
+      "n_skipped": 76,
+      "skip_reasons": {
+        "nan_in_window": 76
+      }
+    },
+    "2024-09-27": {
+      "n_pred": 1047,
+      "n_skipped": 80,
+      "skip_reasons": {
+        "nan_in_window": 80
+      }
+    },
+    "2024-10-08": {
+      "n_pred": 1047,
+      "n_skipped": 80,
+      "skip_reasons": {
+        "nan_in_window": 80
+      }
+    },
+    "2024-10-16": {
+      "n_pred": 1063,
+      "n_skipped": 81,
+      "skip_reasons": {
+        "nan_in_window": 81
+      }
+    },
+    "2024-10-23": {
+      "n_pred": 1075,
+      "n_skipped": 83,
+      "skip_reasons": {
+        "nan_in_window": 83
+      }
+    },
+    "2024-10-30": {
+      "n_pred": 1040,
+      "n_skipped": 87,
+      "skip_reasons": {
+        "nan_in_window": 87
+      }
+    },
+    "2024-11-06": {
+      "n_pred": 1045,
+      "n_skipped": 81,
+      "skip_reasons": {
+        "nan_in_window": 81
+      }
+    },
+    "2024-11-13": {
+      "n_pred": 1043,
+      "n_skipped": 80,
+      "skip_reasons": {
+        "nan_in_window": 80
+      }
+    },
+    "2024-11-20": {
+      "n_pred": 1045,
+      "n_skipped": 80,
+      "skip_reasons": {
+        "nan_in_window": 80
+      }
+    },
+    "2024-11-27": {
+      "n_pred": 1056,
+      "n_skipped": 78,
+      "skip_reasons": {
+        "nan_in_window": 78
+      }
+    },
+    "2024-12-04": {
+      "n_pred": 1077,
+      "n_skipped": 78,
+      "skip_reasons": {
+        "nan_in_window": 78
+      }
+    },
+    "2024-12-11": {
+      "n_pred": 1091,
+      "n_skipped": 82,
+      "skip_reasons": {
+        "nan_in_window": 82
+      }
+    },
+    "2024-12-18": {
+      "n_pred": 1129,
+      "n_skipped": 80,
+      "skip_reasons": {
+        "nan_in_window": 80
+      }
+    },
+    "2024-12-26": {
+      "n_pred": 1105,
+      "n_skipped": 78,
+      "skip_reasons": {
+        "nan_in_window": 78
+      }
+    },
+    "2025-01-06": {
+      "n_pred": 1105,
+      "n_skipped": 72,
+      "skip_reasons": {
+        "nan_in_window": 72
+      }
+    },
+    "2025-01-13": {
+      "n_pred": 1099,
+      "n_skipped": 72,
+      "skip_reasons": {
+        "nan_in_window": 72
+      }
+    },
+    "2025-01-20": {
+      "n_pred": 1064,
+      "n_skipped": 75,
+      "skip_reasons": {
+        "nan_in_window": 75
+      }
+    },
+    "2025-01-31": {
+      "n_pred": 1066,
+      "n_skipped": 76,
+      "skip_reasons": {
+        "nan_in_window": 76
+      }
+    },
+    "2025-02-07": {
+      "n_pred": 1069,
+      "n_skipped": 74,
+      "skip_reasons": {
+        "nan_in_window": 74
+      }
+    },
+    "2025-02-14": {
+      "n_pred": 1092,
+      "n_skipped": 72,
+      "skip_reasons": {
+        "nan_in_window": 72
+      }
+    },
+    "2025-02-21": {
+      "n_pred": 1119,
+      "n_skipped": 72,
+      "skip_reasons": {
+        "nan_in_window": 72
+      }
+    },
+    "2025-02-28": {
+      "n_pred": 1148,
+      "n_skipped": 71,
+      "skip_reasons": {
+        "nan_in_window": 71
+      }
+    },
+    "2025-03-10": {
+      "n_pred": 1145,
+      "n_skipped": 75,
+      "skip_reasons": {
+        "nan_in_window": 75
+      }
+    },
+    "2025-03-17": {
+      "n_pred": 1124,
+      "n_skipped": 69,
+      "skip_reasons": {
+        "nan_in_window": 69
+      }
+    },
+    "2025-03-24": {
+      "n_pred": 1112,
+      "n_skipped": 70,
+      "skip_reasons": {
+        "nan_in_window": 70
+      }
+    },
+    "2025-03-31": {
+      "n_pred": 1095,
+      "n_skipped": 70,
+      "skip_reasons": {
+        "nan_in_window": 70
+      }
+    },
+    "2025-04-07": {
+      "n_pred": 1103,
+      "n_skipped": 75,
+      "skip_reasons": {
+        "nan_in_window": 75
+      }
+    },
+    "2025-04-14": {
+      "n_pred": 1119,
+      "n_skipped": 74,
+      "skip_reasons": {
+        "nan_in_window": 74
+      }
+    },
+    "2025-04-21": {
+      "n_pred": 1103,
+      "n_skipped": 68,
+      "skip_reasons": {
+        "nan_in_window": 68
+      }
+    },
+    "2025-04-28": {
+      "n_pred": 1145,
+      "n_skipped": 80,
+      "skip_reasons": {
+        "nan_in_window": 80
+      }
+    },
+    "2025-05-08": {
+      "n_pred": 1134,
+      "n_skipped": 83,
+      "skip_reasons": {
+        "nan_in_window": 83
+      }
+    },
+    "2025-05-15": {
+      "n_pred": 1152,
+      "n_skipped": 82,
+      "skip_reasons": {
+        "nan_in_window": 82
+      }
+    },
+    "2025-05-22": {
+      "n_pred": 1169,
+      "n_skipped": 88,
+      "skip_reasons": {
+        "nan_in_window": 88
+      }
+    },
+    "2025-05-29": {
+      "n_pred": 1172,
+      "n_skipped": 83,
+      "skip_reasons": {
+        "nan_in_window": 83
+      }
+    },
+    "2025-06-09": {
+      "n_pred": 1211,
+      "n_skipped": 86,
+      "skip_reasons": {
+        "nan_in_window": 86
+      }
+    },
+    "2025-06-16": {
+      "n_pred": 1264,
+      "n_skipped": 81,
+      "skip_reasons": {
+        "nan_in_window": 81
+      }
+    },
+    "2025-06-23": {
+      "n_pred": 1293,
+      "n_skipped": 82,
+      "skip_reasons": {
+        "nan_in_window": 82
+      }
+    },
+    "2025-06-30": {
+      "n_pred": 1326,
+      "n_skipped": 88,
+      "skip_reasons": {
+        "nan_in_window": 88
+      }
+    }
+  },
+  "env_by_date": {
+    "2024-07-01": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-07-08": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-07-15": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-07-22": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-07-29": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-08-05": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-08-12": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-08-20": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-08-27": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-09-03": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-09-10": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-09-20": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-09-27": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-10-08": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-10-16": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-10-23": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-10-30": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-11-06": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-11-13": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-11-20": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-11-27": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-12-04": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-12-11": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-12-18": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2024-12-26": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-01-06": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-01-13": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-01-20": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-01-31": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-02-07": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-02-14": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-02-21": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-02-28": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-03-10": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-03-17": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-03-24": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-03-31": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-04-07": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-04-14": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-04-21": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-04-28": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-05-08": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-05-15": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-05-22": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-05-29": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-06-09": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-06-16": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-06-23": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    },
+    "2025-06-30": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    }
+  },
+  "elapsed_by_date": {
+    "2024-07-01": 444.58,
+    "2024-07-08": 440.45,
+    "2024-07-15": 427.69,
+    "2024-07-22": 427.89,
+    "2024-07-29": 426.62,
+    "2024-08-05": 439.93,
+    "2024-08-12": 435.28,
+    "2024-08-20": 434.62,
+    "2024-08-27": 424.02,
+    "2024-09-03": 402.48,
+    "2024-09-10": 398.4,
+    "2024-09-20": 388.91,
+    "2024-09-27": 388.97,
+    "2024-10-08": 388.59,
+    "2024-10-16": 394.81,
+    "2024-10-23": 399.03,
+    "2024-10-30": 385.89,
+    "2024-11-06": 387.94,
+    "2024-11-13": 387.29,
+    "2024-11-20": 387.68,
+    "2024-11-27": 391.79,
+    "2024-12-04": 399.61,
+    "2024-12-11": 404.84,
+    "2024-12-18": 418.88,
+    "2024-12-26": 410.07,
+    "2025-01-06": 408.95,
+    "2025-01-13": 407.12,
+    "2025-01-20": 393.73,
+    "2025-01-31": 393.82,
+    "2025-02-07": 396.09,
+    "2025-02-14": 404.28,
+    "2025-02-21": 413.94,
+    "2025-02-28": 424.63,
+    "2025-03-10": 426.99,
+    "2025-03-17": 418.95,
+    "2025-03-24": 414.89,
+    "2025-03-31": 408.1,
+    "2025-04-07": 411.58,
+    "2025-04-14": 416.52,
+    "2025-04-21": 408.05,
+    "2025-04-28": 423.48,
+    "2025-05-08": 419.88,
+    "2025-05-15": 426.19,
+    "2025-05-22": 432.55,
+    "2025-05-29": 434.2,
+    "2025-06-09": 448.05,
+    "2025-06-16": 469.29,
+    "2025-06-23": 480.2,
+    "2025-06-30": 492.92
+  },
+  "sessions": [
+    {
+      "started_at": "2026-10-04T03:43:44.148586+00:00",
+      "hostname": "1b6d7471c2b1",
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "pod_id": "12cwi86z1h15xy",
+      "n_written": 49,
+      "finished_at": "2026-10-04T09:25:37.243628+00:00"
+    }
+  ],
+  "completed_at": "2026-10-04T09:25:37.243628+00:00",
+  "n_files_present": 49
+}
