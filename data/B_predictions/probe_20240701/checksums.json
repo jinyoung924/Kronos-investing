@@ -1,0 +1,13 @@
+{
+  "run_id": "probe_20240701",
+  "n_files": 1,
+  "total_bytes": 4636497,
+  "code_commit": "b5c43c4be917841b087bae278ae039af4b8c82ca",
+  "manifest_bytes": 7825,
+  "files": {
+    "as_of=2024-07-01.parquet": {
+      "bytes": 4636497,
+      "sha256": "b02412f764575fc799abffe2b9cf30e57949e17a9d47511a30f174ad5ca826cb"
+    }
+  }
+}

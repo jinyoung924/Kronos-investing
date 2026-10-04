@@ -18,5 +18,8 @@
   "ssh_port": "18919",
   "repo_dir": "/workspace/Kronos-investing",
   "pred_dir": "/workspace/Kronos-investing/data/B_predictions/probe_20240701",
-  "status": "running"
+  "status": "ok",
+  "exit_code": 0,
+  "finished_utc": "2026-10-04T03:03:49+00:00",
+  "elapsed_min": 24.0
 }

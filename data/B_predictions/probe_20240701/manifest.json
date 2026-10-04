@@ -1,0 +1,327 @@
+{
+  "run_id": "probe_20240701",
+  "backend": "kronos",
+  "profile": "base",
+  "model": "NeoQuasar/Kronos-base",
+  "tokenizer": "NeoQuasar/Kronos-Tokenizer-base",
+  "hf_revision_requested": "2b554741eca47781b64468546e77fef3e85130e6",
+  "hf_revision_resolved": {
+    "model": "2b554741eca47781b64468546e77fef3e85130e6",
+    "tokenizer": "0e0117387f39004a9016484a186a908917e22426"
+  },
+  "lookback": 400,
+  "pred_len": 5,
+  "temperature": 1.0,
+  "top_p": 0.9,
+  "top_k": 0,
+  "sample_count": 20,
+  "universe": [
+    "kospi",
+    "kosdaq"
+  ],
+  "universe_variant": "liq5",
+  "backtest_universe_variant": "base",
+  "dtype": "float32",
+  "env": {
+    "gpu_name": "NVIDIA GeForce RTX 4090",
+    "gpu_count": 1,
+    "driver_version": "580.159.04",
+    "cuda_version": "13.0",
+    "torch_version": "2.14.1+cu130",
+    "python_version": "3.12.3",
+    "dtype": "float32",
+    "hostname": "1b6d7471c2b1",
+    "pod_id": "12cwi86z1h15xy",
+    "device": "cuda:0",
+    "platform": "Linux-6.8.0-124-generic-x86_64-with-glibc2.39"
+  },
+  "start": "2024-07-01",
+  "end": "2024-07-01",
+  "step": 5,
+  "n_rebalance_dates": 1,
+  "code_commit": "b5c43c4be917841b087bae278ae039af4b8c82ca",
+  "max_tickers": null,
+  "smoke": false,
+  "started_at": "2026-10-04T02:56:12.522226+00:00",
+  "last_updated_at": "2026-10-04T03:03:39.077512+00:00",
+  "config": {
+    "project": {
+      "run_ids": {
+        "base": "kronos_base_v1",
+        "paper": "kronos_paper_v1"
+      },
+      "seed": 42
+    },
+    "period": {
+      "start": "2024-07-01",
+      "end": "2024-07-01"
+    },
+    "data": {
+      "markets": [
+        "KOSPI",
+        "KOSDAQ"
+      ],
+      "price_basis": "raw",
+      "index_tickers": {
+        "kospi": "KOSPI",
+        "kosdaq": "KOSDAQ"
+      },
+      "raw_dir": "data/raw",
+      "universe_dir": "data/universe",
+      "logs_dir": "logs",
+      "price_file": "prices.parquet",
+      "prepared_dir": "data/A_prepared",
+      "pod_inputs_file": "RunPod/inputs.sha256.json",
+      "predictions_dir": "data/B_predictions",
+      "signals_dir": "data/C_signals",
+      "weights_dir": "data/D_weights",
+      "backtest_dir": "data/E_backtest",
+      "metrics_dir": "data/F_metrics",
+      "reports_dir": "reports",
+      "ffill_limit": 5,
+      "max_daily_move": 0.35,
+      "delist_window_days": 14
+    },
+    "universe": {
+      "indices": [
+        "kospi",
+        "kosdaq"
+      ],
+      "markets": {
+        "kospi": "KOSPI",
+        "kosdaq": "KOSDAQ"
+      },
+      "variant": "base",
+      "top_n_mktcap": null,
+      "max_stale_days": 5,
+      "common_stock_only": true,
+      "exclude_name_patterns": [
+        "스팩"
+      ],
+      "exclude_sect_patterns": [
+        "SPAC"
+      ],
+      "min_history_rows": 400,
+      "liquidity_window": 20,
+      "min_avg_trdval": 1000000000,
+      "exclude_halted": true,
+      "universe_start_buffer_days": 30,
+      "variants": {
+        "base": {},
+        "liq5": {
+          "min_avg_trdval": 500000000
+        },
+        "clean": {
+          "exclude_sect_patterns": [
+            "SPAC",
+            "관리종목",
+            "투자주의환기"
+          ]
+        }
+      }
+    },
+    "krx": {
+      "fetch_start": "2022-10-01",
+      "fetch_end": "2025-07-15",
+      "markets": [
+        "KOSPI",
+        "KOSDAQ"
+      ],
+      "index_series": {
+        "kospi": {
+          "api": "kospi_dd_trd",
+          "name": "코스피",
+          "ticker": "KOSPI"
+        },
+        "kosdaq": {
+          "api": "kosdaq_dd_trd",
+          "name": "코스닥",
+          "ticker": "KOSDAQ"
+        }
+      },
+      "benchmark_etfs": [
+        "226490",
+        "229200"
+      ],
+      "min_interval_sec": 0.15,
+      "cache_dir": "data/krx_raw",
+      "snapshot": "2026-09-28"
+    },
+    "model": {
+      "name": "NeoQuasar/Kronos-base",
+      "tokenizer": "NeoQuasar/Kronos-Tokenizer-base",
+      "revision": "2b554741eca47781b64468546e77fef3e85130e6",
+      "tokenizer_revision": "0e0117387f39004a9016484a186a908917e22426",
+      "kronos_repo": "./Kronos",
+      "kronos_repo_commit": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
+      "dtype": "float32",
+      "top_k": 0,
+      "max_context": 512,
+      "batch_size": 256,
+      "device": "cuda:0"
+    },
+    "infer": {
+      "default_profile": "base",
+      "profiles": {
+        "base": {
+          "lookback": 400,
+          "pred_len": 5,
+          "step": 5,
+          "temperature": 1.0,
+          "top_p": 0.9,
+          "sample_count": 20,
+          "universe_variant": "liq5"
+        },
+        "paper": {
+          "lookback": 90,
+          "pred_len": 10,
+          "step": 1,
+          "temperature": 0.6,
+          "top_p": 0.9,
+          "sample_count": 10,
+          "universe_variant": "liq5"
+        }
+      }
+    },
+    "signal": {
+      "n_samples": {
+        "base": 20,
+        "paper": 10
+      },
+      "mom_window": 20,
+      "vol_window": 20,
+      "rev_window": 5
+    },
+    "strategies": {
+      "equal_weight": {
+        "profile": "base",
+        "schedule": "weekly"
+      },
+      "momentum20_topk": {
+        "profile": "base",
+        "schedule": "weekly",
+        "k": 50
+      },
+      "random_topk": {
+        "profile": "base",
+        "schedule": "weekly",
+        "k": 50
+      },
+      "topk": {
+        "profile": "paper",
+        "schedule": "daily",
+        "signal_col": "exp_ret_mean",
+        "k": 50,
+        "n_drop": 5,
+        "hold_min_days": 5
+      },
+      "conf_weighted": {
+        "profile": "base",
+        "schedule": "weekly",
+        "signal_col": "exp_ret",
+        "threshold": null
+      },
+      "vol_target": {
+        "profile": "base",
+        "schedule": "weekly",
+        "signal_col": "exp_ret",
+        "k": 50
+      }
+    },
+    "costs": {
+      "scenario": "paper",
+      "commission_buy": 0.00015,
+      "commission_sell": 0.00015,
+      "slippage_bps": 5,
+      "sell_tax_table": [],
+      "paper": {
+        "buy": 0.001,
+        "sell": 0.0015
+      }
+    },
+    "backtest": {
+      "init_cash": null,
+      "delist_policy": null,
+      "v2": {
+        "constraints": {
+          "costs": true,
+          "integer_shares": true,
+          "cash": true,
+          "price_limit": true,
+          "halt": true,
+          "liquidity": true
+        },
+        "price_limit_pct": null,
+        "tick_table": [],
+        "max_participation": null
+      }
+    },
+    "evaluate": {
+      "benchmark": "equal_weight",
+      "paper_benchmark": "KOSPI",
+      "reference_indices": [
+        "KOSPI",
+        "KOSDAQ"
+      ],
+      "by_market": true,
+      "dsr_scope": "profile",
+      "periods_per_year": 252,
+      "risk_free": 0.0,
+      "quantiles": 5,
+      "min_cross_section": 10,
+      "bootstrap": {
+        "n": 2000,
+        "block": 20
+      },
+      "regimes": {
+        "split": "half_year"
+      }
+    },
+    "report": {
+      "compare_run_ids": [
+        "kronos_base_v1",
+        "kronos_paper_v1"
+      ],
+      "shortfall_strategy": "topk",
+      "shortfall_order": [
+        "costs",
+        "integer_shares",
+        "cash",
+        "price_limit",
+        "halt",
+        "liquidity"
+      ]
+    }
+  },
+  "skipped_by_date": {
+    "2024-07-01": {
+      "n_pred": 1204,
+      "n_skipped": 76,
+      "skip_reasons": {
+        "nan_in_window": 76
+      }
+    }
+  },
+  "env_by_date": {
+    "2024-07-01": {
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.159.04",
+      "hostname": "1b6d7471c2b1"
+    }
+  },
+  "elapsed_by_date": {
+    "2024-07-01": 444.39
+  },
+  "sessions": [
+    {
+      "started_at": "2026-10-04T02:56:12.540850+00:00",
+      "hostname": "1b6d7471c2b1",
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "pod_id": "12cwi86z1h15xy",
+      "n_written": 1,
+      "finished_at": "2026-10-04T03:03:39.094031+00:00"
+    }
+  ],
+  "completed_at": "2026-10-04T03:03:39.094031+00:00",
+  "n_files_present": 1
+}
