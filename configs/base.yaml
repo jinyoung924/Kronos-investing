@@ -86,7 +86,8 @@ model:                         # D-7: Kronos model identity and GPU runtime (B_m
   dtype: float32               # keep float32 (bf16 changes the numbers); anything else is refused
   top_k: 0
   max_context: 512
-  batch_size: null             # sequences per forward pass (tickers x samples); fill from the Pod probe (C-2). --batch-size for one run
+  batch_size: 256              # sequences per forward pass (tickers x samples). Pod probe 2026-10-04 (RunPod/README.md §6): speed is flat from 120 to 400,
+                               # >= 1024 runs out of memory on base. Changing it changes the sampled values -> keep it fixed within a run_id
   device: cuda:0
 
 infer:                         # D-7: inference profiles. One run_id follows one profile; manifest.profile records it. seed = project.seed only
