@@ -36,7 +36,11 @@ ensure_rsync() {   # $1 host, $2 port: RunPod images do not always ship rsync
   ssh $(ssh_opts "$2") "root@$1" 'command -v rsync >/dev/null || { apt-get update -qq && apt-get install -y -qq rsync; }'
 }
 # cloud_run.json of a run, from origin/results/<RUN_ID> (the pod pushes it at start and on exit)
-cloud_run() { git fetch -q origin "results/$1" 2>/dev/null && git show "FETCH_HEAD:$(pred_rel "$1")/cloud_run.json" 2>/dev/null; }
+# falls back to the fetched / merged local copy once the branch is gone
+cloud_run() {
+  local rel; rel="$(pred_rel "$1")"
+  if git fetch -q origin "results/$1" 2>/dev/null; then git show "FETCH_HEAD:$rel/cloud_run.json" 2>/dev/null; else cat "$rel/cloud_run.json" 2>/dev/null; fi
+}
 field() { python3 -c 'import json, sys; print(json.load(sys.stdin).get(sys.argv[1]) or "")' "$1"; }
 
 case "$cmd" in
