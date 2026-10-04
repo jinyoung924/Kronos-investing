@@ -38,6 +38,7 @@
 | ⑤a | 로컬 | `bash RunPod/local.sh merge kronos_base_v1` | 남길 실행: 메타데이터를 main에 병합·push, 원격 결과 브랜치 삭제. 로컬 verify가 통과해야 함 |
 | ⑤b | 로컬 | `bash RunPod/local.sh drop probe_20240701` | 버릴 실행(probe 등): 원격 결과 브랜치만 삭제 |
 | ⑥ | 로컬 | `bash RunPod/local.sh terminate kronos_base_v1` | pod 종료. 로컬 verify가 통과하지 않으면 거부. 네트워크 볼륨은 남음 |
+| ④+⑥ 무인 | 로컬 | `caffeinate -i bash RunPod/local.sh watch kronos_base_v1` | pod가 `status: ok`를 push할 때까지 2분마다 확인 → `fetch`(rsync + verify) → `terminate`. 실패한 실행과 verify 실패는 종료하지 않는다. 로컬 기기가 깨어 있어야 한다. 로컬에 `RUNPOD_USER_API_KEY`가 없으면 pod 환경변수의 키로 pod가 직접 API를 호출한다 |
 | 확인 | 로컬 | `status` / `list` / `ssh <RUN_ID>` / `same <A> <B>` | 상태, 결과 브랜치 목록, pod 셸, 두 실행의 파일이 비트 단위로 같은지 |
 
 **규칙**

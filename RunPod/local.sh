@@ -9,6 +9,7 @@
 #   bash RunPod/local.sh merge <RUN_ID>           # ⑤ keep: merge results/<RUN_ID> (metadata only) into main, push, delete the remote branch
 #   bash RunPod/local.sh drop  <RUN_ID>           # ⑤ discard: delete the remote branch (local files stay)
 #   bash RunPod/local.sh terminate <RUN_ID>       # ⑥ terminate the pod of that run; refused until the local checksum verify passes
+#   bash RunPod/local.sh watch <RUN_ID>           #    ④+⑥ unattended: wait until the pod reports ok, fetch + verify, then terminate (WATCH_TERMINATE=0 to keep the pod)
 #   bash RunPod/local.sh ssh <RUN_ID>             #    open a shell on the pod of that run
 #   bash RunPod/local.sh status                   #    where am I, what is uncommitted, what is unmerged
 #
@@ -130,15 +131,42 @@ PY
       [[ -n "$pod" ]] || pod="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("pod_id") or "")' "$(pred_rel "$arg")/cloud_run.json" 2>/dev/null || true)"
     fi
     [[ -n "$pod" ]] || die "pod id unknown. Pass it: $0 terminate $arg <pod id>"
-    [[ -n "${RUNPOD_USER_API_KEY:-}" ]] || die "RUNPOD_USER_API_KEY is not set (export it or put it in RunPod/.env), or terminate pod $pod on the web"
     if [[ "${YES:-0}" != "1" ]]; then
       read -r -p "terminate pod $pod? The network volume is kept. [y/N] " ans; [[ "$ans" == y || "$ans" == Y ]] || die "cancelled"
     fi
-    resp="$(curl -s -X POST "https://api.runpod.io/graphql?api_key=$RUNPOD_USER_API_KEY" -H 'Content-Type: application/json' \
-      -d "{\"query\":\"mutation { podTerminate(input: {podId: \\\"$pod\\\"}) }\"}")"
+    query="{\"query\":\"mutation { podTerminate(input: {podId: \\\"$pod\\\"}) }\"}"
+    if [[ -n "${RUNPOD_USER_API_KEY:-}" ]]; then
+      resp="$(curl -s -X POST "https://api.runpod.io/graphql?api_key=$RUNPOD_USER_API_KEY" -H 'Content-Type: application/json' -d "$query")"
+    else
+      # no local key: let the pod call the API with the key of its own deploy-page env (the key never leaves the pod)
+      cr="$(cloud_run "$arg")" || die "RUNPOD_USER_API_KEY is not set locally and origin has no results/$arg to find the pod: terminate pod $pod on the web"
+      # shellcheck disable=SC2046,SC2029
+      resp="$(ssh $(ssh_opts "$(field ssh_port <<<"$cr")") "root@$(field ssh_host <<<"$cr")" \
+        "K=\$(tr '\\0' '\\n' < /proc/1/environ | sed -n 's/^RUNPOD_USER_API_KEY=//p'); [ -n \"\$K\" ] || { echo '{\"errors\":\"no RUNPOD_USER_API_KEY on the pod\"}'; exit 0; }; curl -s -X POST \"https://api.runpod.io/graphql?api_key=\$K\" -H 'Content-Type: application/json' -d '$query'" || true)"
+    fi
     echo "$resp"
-    [[ "$resp" != *'"errors"'* ]] || die "the API reported an error: check the pod on the web"
+    [[ -n "$resp" && "$resp" != *'"errors"'* ]] || die "the API reported an error: terminate pod $pod on the web"
     echo "pod $pod terminated. Delete the network volume on the web once a second local backup exists."
+    ;;
+
+  watch)
+    # Wait for the pod to report the end of the run (cloud_run.json status on results/<RUN_ID>), then fetch + verify + terminate.
+    # A failed run is never terminated: the pod stays up so the log can be read and the run resumed.
+    need_run
+    every="${WATCH_EVERY:-120}"
+    echo "watching results/$arg every ${every}s (this machine must stay awake: run it under 'caffeinate -i' on macOS)"
+    while :; do
+      st=""; if cr="$(cloud_run "$arg")"; then st="$(field status <<<"$cr")"; fi
+      echo "$(date '+%H:%M:%S') status=${st:-unknown}"
+      case "$st" in
+        ok) break ;;
+        failed) die "the run failed on the pod. Not terminating. Look at it: $0 ssh $arg" ;;
+      esac
+      sleep "$every"
+    done
+    "$0" fetch "$arg" || die "fetch/verify failed. Not terminating. Run again: $0 fetch $arg"
+    if [[ "${WATCH_TERMINATE:-1}" == "1" ]]; then YES=1 "$0" terminate "$arg"; else echo "WATCH_TERMINATE=0 -> the pod is left running"; fi
+    echo "done. Next: bash RunPod/local.sh merge $arg"
     ;;
 
   ssh)
