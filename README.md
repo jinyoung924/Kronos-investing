@@ -22,7 +22,7 @@ A_data_prepare/        KRX Open API -> data/raw, data/universe (docs/data_pipeli
 B_model_infer/         Kronos 추론 (RunPod). build_batch.py backends.py run_inference.py make_fake_predictions.py pod_inputs.py verify_run.py checksum.py env_info.py -> data/B_predictions/{run_id}/
 C_signal/              aggregate.py baseline_features.py run_signal.py -> data/C_signals/{run_id}/signals.parquet (Stage 2)
 D_strategy/            base.py registry.py equal_weight.py momentum20_topk.py random_topk.py topk.py conf_weighted.py vol_target.py run_strategy.py -> data/D_weights/{run_id}/{strategy}.parquet (Stage 3)
-E_backtest/            costs.py engine_v1_weights.py run_backtest.py -> data/E_backtest/{run_id}/v1/{strategy}[@no_costs|@paper_costs]/ (Stage 4)
+E_backtest/            costs.py constraints.py engine_v1_weights.py engine_v2_orders.py run_backtest.py -> data/E_backtest/{run_id}/v1/{strategy}[@no_costs|@paper_costs]/ (Stage 4)
 F_evaluate/            labels.py signal_metrics.py portfolio_metrics.py significance.py run_evaluate.py -> data/F_metrics/{run_id}/ (Stage 5)
 RunPod/                Pod 운영 스크립트와 절차서 (README.md local.sh runpod.sh setup_runpod.sh push_meta.sh inputs.sha256.json)
 G_report/              Stage 8에서 채움 (지금은 빈 패키지)
@@ -96,6 +96,17 @@ python scripts/probes/stage6_mean_reversion.py                             # exp
 ```
 
 Kronos 전략: `topk`(paper 프로필, 매일, Top-k/Drop-n), `conf_weighted`·`vol_target`(base 프로필, 주 1회). paper 프로필 run_id에서 벤치마크 전략을 돌릴 때는 `--set strategies.<name>.profile=paper`.
+
+## 엔진 v2와 제약 (Stage 7)
+
+```bash
+# 주문 단위 엔진. 제약 6종(costs, integer_shares, cash, price_limit, halt, liquidity)을 시나리오로 켠다 -> data/E_backtest/{run_id}/v2/{strategy}/{scenario}/
+python -m E_backtest.run_backtest --run-id kronos_base_v1 --strategy conf_weighted --engine v2 --scenario all_off          # v1과 같은 결과
+python -m E_backtest.run_backtest --run-id kronos_base_v1 --strategy conf_weighted --engine v2 --shortfall --costs paper   # report.shortfall_order의 누적 시나리오 7개
+python scripts/probes/stage7_figures.py                                                                                    # 시나리오별 표, 가격제한 거부 주문, v1·v2 NAV 그림
+```
+
+v2는 `backtest.init_cash`가 필요하고, price_limit는 `backtest.v2.price_limit_pct`·`tick_table`, liquidity는 `max_participation`이 필요하다(null이면 오류). 값이 정해지기 전에는 `--set`으로 준다(docs/stage_reports/stage7.md).
 
 ## 가짜 예측과 시그널 (로컬, Kronos 없이)
 

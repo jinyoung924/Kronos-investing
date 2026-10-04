@@ -25,9 +25,12 @@ class CostModel:
         if self.scenario not in SCENARIOS:
             raise ValueError(f"costs scenario must be one of {SCENARIOS}, got {self.scenario!r}")
         self._tax: dict[str, list[tuple[pd.Timestamp, float]]] = {}
+        self.commission_buy = self.commission_sell = self.slippage = 0.0     # components (engine v2 books them separately)
         if self.scenario == "kr":
-            self.buy_base = float(require(cfg, "costs.commission_buy")) + float(require(cfg, "costs.slippage_bps")) / 1e4
-            self.sell_base = float(require(cfg, "costs.commission_sell")) + float(require(cfg, "costs.slippage_bps")) / 1e4
+            self.commission_buy, self.commission_sell = float(require(cfg, "costs.commission_buy")), float(require(cfg, "costs.commission_sell"))
+            self.slippage = float(require(cfg, "costs.slippage_bps")) / 1e4
+            self.buy_base = self.commission_buy + self.slippage
+            self.sell_base = self.commission_sell + self.slippage
             table = cfg_get(cfg, "costs.sell_tax_table")
             if not table:
                 raise ConfigError("costs.sell_tax_table is empty: fill [{market, start, rate}, ...] in configs/base.yaml "
@@ -40,8 +43,8 @@ class CostModel:
             for m in self._tax:
                 self._tax[m].sort()
         elif self.scenario == "paper":
-            self.buy_base = float(require(cfg, "costs.paper.buy"))
-            self.sell_base = float(require(cfg, "costs.paper.sell"))
+            self.buy_base = self.commission_buy = float(require(cfg, "costs.paper.buy"))
+            self.sell_base = self.commission_sell = float(require(cfg, "costs.paper.sell"))
         else:
             self.buy_base = self.sell_base = 0.0
 
@@ -77,6 +80,17 @@ class CostModel:
         tax = {m: self.sell_tax(date, m) for m in set(markets.tolist())}
         sell = np.array([self.sell_base + tax[m] for m in markets], dtype=float)
         return buy, sell
+
+    def components(self, date, markets) -> dict:
+        """Cost rates split by kind for engine v2: commission_buy, commission_sell, slippage (scalars) and tax (array per
+        ticker). commission_buy + slippage = buy rate and commission_sell + slippage + tax = sell rate of rates()."""
+        markets = np.asarray(markets, dtype=object)
+        if self.scenario == "kr":
+            tax_by = {m: self.sell_tax(date, m) for m in set(markets.tolist())}
+            tax = np.array([tax_by[m] for m in markets], dtype=float)
+        else:
+            tax = np.zeros(len(markets))
+        return {"commission_buy": self.commission_buy, "commission_sell": self.commission_sell, "slippage": self.slippage, "tax": tax}
 
     def describe(self) -> dict:
         return {"scenario": self.scenario, "buy_base": self.buy_base, "sell_base": self.sell_base,

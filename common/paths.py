@@ -106,6 +106,10 @@ class Paths:
     def backtest_dir(self, run_id: str, engine: str, strategy: str) -> Path:
         return self._dir("data.backtest_dir", "data/E_backtest") / run_id / engine / strategy
 
+    def backtest_scenario_dir(self, run_id: str, strategy: str, scenario: str) -> Path:
+        """Engine v2 output: data/E_backtest/{run_id}/v2/{strategy}/{scenario}/ (scenario = enabled constraints, e.g. all_off)."""
+        return self.backtest_dir(run_id, "v2", strategy) / scenario
+
     # ---- F: metrics -------------------------------------------------------------------------------
     def metrics_dir(self, run_id: str) -> Path:
         return self._dir("data.metrics_dir", "data/F_metrics") / run_id
